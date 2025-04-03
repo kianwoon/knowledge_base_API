@@ -42,7 +42,7 @@ logs/
 .env.example
 .env.uat
 # Configuration
-config/settings.yaml
+
 
 # Redis data
 *.rdb

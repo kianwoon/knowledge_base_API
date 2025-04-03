@@ -1,0 +1,67 @@
+app:
+  env: "development"  # development, testing, production
+  port: 8000
+  version: 0.1.0
+  max_attachment_size: 26214400  # 25MB in bytes (25 * 1024 * 1024)
+  allowed_file_types:
+    extensions: [".pdf", ".docx", ".xlsx", ".pptx", ".eml", ".txt"]
+    mime_types: 
+      - "application/pdf"
+      - "application/vnd.openxmlformats-officedocument.*"
+      - "text/plain"
+      - "message/rfc822"
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: null  # null means no password
+
+rate_limits:
+  tiers:
+    free:
+      requests_per_minute: 50  # Higher limits for development
+      max_concurrent: 10
+    pro:
+      requests_per_minute: 200
+      max_concurrent: 40
+    enterprise:
+      requests_per_minute: 2000
+      max_concurrent: 200
+
+openai:
+  max_tokens_per_request: 4096
+  monthly_cost_limit: 20  # Lower cost limit for development
+  model_choices:
+    - "gpt-4o-mini"
+    - "gpt-3.5-turbo-1106"
+  fallback_model: "gpt-3.5-turbo-1106"  # Use cheaper model for development
+
+email_analysis:
+  department_keywords:
+    IT: ["software", "hardware", "server", "network", "computer", "technology", "technical", "IT"]
+    HR: ["hiring", "recruitment", "employee", "benefits", "hr", "personnel", "training", "onboarding"]
+    Finance: ["budget", "payment", "invoice", "financial", "accounting", "expense", "finance", "cost"]
+    Legal: ["contract", "agreement", "compliance", "law", "legal", "policy", "regulation", "terms"]
+    Marketing: ["campaign", "advertisement", "social media", "marketing", "promotion", "brand", "market"]
+    Sales: ["customer", "client", "sale", "opportunity", "lead", "deal", "revenue", "prospect"]
+    Operations: ["operations", "logistics", "supply chain", "procurement", "facility", "warehouse"]
+    Product: ["product", "feature", "roadmap", "design", "user experience", "development", "release"]
+
+webhook:
+  enabled: true
+  url: "localhost:9000/webhook"
+  auth_token: null
+  timeout: 5
+  retry_attempts: 3
+
+notifications:
+  email:
+    enabled: false
+    smtp_server: "smtp.example.com"
+    smtp_port: 587
+    sender: "noreply@mailanalyzer.com"
+    recipients: ["dev-team@company.com"]
+  log_file:
+    path: "logs/dev-errors.log"
+    max_size: 100MB
+    backup_count: 5

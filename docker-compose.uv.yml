@@ -10,8 +10,12 @@ services:
       - REDIS_PORT=6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENV=${ENV}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - TZ=Asia/Singapore
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     volumes:
       - ./config:/app/config
     restart: unless-stopped
@@ -25,8 +29,14 @@ services:
       - REDIS_PORT=6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENV=${ENV}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - TZ=Asia/Singapore
+    deploy:
+      replicas: 3
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     volumes:
       - ./config:/app/config
     restart: unless-stopped
@@ -38,6 +48,11 @@ services:
     volumes:
       - redis-data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   redis-data:

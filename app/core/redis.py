@@ -5,6 +5,7 @@ Redis client module for the Mail Analysis API.
 
 from redis import asyncio as redis
 from loguru import logger
+import asyncio
 
 from app.core.config import config
 
@@ -34,7 +35,7 @@ class RedisClient:
                 encoding="utf-8",
                 decode_responses=True
             )
-                
+            await self.client.ping()    
             logger.info(f"Connected to Redis at {host}:{port}")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {str(e)}")
@@ -314,6 +315,40 @@ class RedisClient:
             raise RuntimeError("Redis client not connected")
             
         return self.client.pipeline()
+    
+    async def connect_with_retry(self,initial_retry_delay:int=30, max_retry_delay:int=600):
+        """
+        Connect to Redis with retry mechanism that never gives up.
+        
+        Args:
+            initial_retry_delay: Initial delay between retries in seconds (default: 30s)
+            max_retry_delay: Maximum delay between retries in seconds (default: 1 hour)
+            
+        Returns:
+            True when connection is successful (will retry indefinitely until success)
+        """
+        retries = 0
+        current_delay = initial_retry_delay
+        
+        while True:  # Infinite loop - will always retry
+            try:
+                retries += 1
+                logger.info(f"Attempting to connect to Redis (attempt {retries})...")
+                # Test connection with ping
+                if await redis_client.ping():
+                    logger.info("Successfully connected to Redis")
+                    return True
+                else:
+                    logger.warning("Redis connection established but ping failed")
+            except Exception as e:
+                logger.warning(f"Failed to connect to Redis: {str(e)}")
+            
+            # Wait before retrying with exponential backoff (capped at max_retry_delay)
+            logger.info(f"Waiting {current_delay} seconds before retrying...")
+            await asyncio.sleep(current_delay)
+            
+            # Increase delay for next retry (exponential backoff with cap)
+            current_delay = min(current_delay * 1.5, max_retry_delay)
 
 
 # Global Redis client instance

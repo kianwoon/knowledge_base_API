@@ -3,7 +3,6 @@
 Worker module for the Mail Analysis API.
 """
 
-import os
 import json
 import asyncio
 import aiohttp
@@ -14,6 +13,7 @@ from loguru import logger
 from app.core.config import config, get_timezone, localize_datetime
 from app.core.redis import redis_client
 from app.core.snowflake import generate_id
+from app.core.const import JobType
 from app.models.email import EmailSchema
 from app.services.openai_service import openai_service
 
@@ -30,7 +30,7 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-async def send_webhook_notification(webhook_url: str, data: Dict[str, Any], job_id: str, trace_id: str):
+async def send_webhook_notification(webhook_url: str,webhook_timeout:int, data: Dict[str, Any], job_id: str, trace_id: str):
     """
     Send webhook notification with job results.
     
@@ -50,9 +50,19 @@ async def send_webhook_notification(webhook_url: str, data: Dict[str, Any], job_
             async with session.post(
                 webhook_url,
                 json=data,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
+                timeout=aiohttp.ClientTimeout(total=webhook_timeout)  # Set a timeout for the request
             ) as response:
                 response_text = await response.text()
+                # Extract headers for logging
+                headers_dict = dict(response.headers)
+                response_log = json.dumps(response_text, indent=2)
+
+                # Log the complete response with headers and status
+                logger.info(
+                    f"response: {response_log}",
+                    extra={"job_id": job_id, "trace_id": trace_id}
+                )
                 if response.status >= 200 and response.status < 300:
                     logger.info(
                         f"Webhook notification sent successfully for job {job_id}, status: {response.status}, trace_id: {trace_id}",
@@ -70,12 +80,14 @@ async def send_webhook_notification(webhook_url: str, data: Dict[str, Any], job_
                             "trace_id": trace_id
                         }
                     )
+    except aiohttp.ClientResponseError as e:
+        logger.error(f"Error sending webhook notification for job {job_id}, trace_id: {trace_id} Client Response Error: {e.status} - {e.message}")
+    except aiohttp.ClientConnectionError as e:
+        logger.error(f"Error sending webhook notification for job {job_id}, trace_id: {trace_id} Connection Error: {repr(e)}")
+    except aiohttp.ClientPayloadError as e:
+        logger.error(f"Error sending webhook notification for job {job_id}, trace_id: {trace_id} Payload Error: {repr(e)}")
     except Exception as e:
-
-        logger.error(
-            f"Error sending webhook notification for job {job_id}: {str(e)}, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
+        logger.error(f"Error sending webhook notification for job {job_id}, trace_id: {trace_id} An unexpected error occurred: {repr(e)}")
 
 
 async def process_job(job_id: str, trace_id: str = None):
@@ -96,6 +108,9 @@ async def process_job(job_id: str, trace_id: str = None):
             extra={"job_id": job_id, "trace_id": trace_id}
         )
         
+        # Ensure Redis connection is active before processing
+        await redis_client.connect_with_retry()  # Will retry indefinitely
+        
         # Get job data
         job_data_json = await redis_client.get(f"job:{job_id}:data")
         job_type = await redis_client.get(f"job:{job_id}:type")
@@ -107,14 +122,13 @@ async def process_job(job_id: str, trace_id: str = None):
         try:
             job_data = json.loads(job_data_json)
             
-            # Log job data keys for debugging
+            # Log full job data for debugging
             logger.info(
-                f"Job data keys: {list(job_data.keys())},Job type: {job_type}, job_id: {job_id}, trace_id: {trace_id}",
-                extra={"job_id": job_id, "trace_id": trace_id}
-            ) 
+                f"Job data: {job_data_json[:1000]}, job_id: {job_id}, trace_id: {trace_id}" 
+            )
             
             # Process based on job type
-            if job_type == "subject_analysis":
+            if job_type == JobType.SUBJECT_ANALYSIS.value:
                 # For subject analysis
                 subjects = job_data.get("subjects", [])
                 min_confidence = job_data.get("min_confidence", None)
@@ -167,11 +181,16 @@ async def process_job(job_id: str, trace_id: str = None):
         webhook_enabled = config.get("webhook", {}).get("enabled", False)
         # Send webhook notification if URL is available
         if webhook_enabled and webhook_url:
+
+            webhook_timeout = config.get("webhook", {}).get("timeout", 10)
+            webhook_url = webhook_url + job_type
             logger.info(
                 f"Using webhook URL: {webhook_url} for job {job_id}, trace_id: {trace_id}",
                 extra={"job_id": job_id, "trace_id": trace_id}
             )
-            await send_webhook_notification(webhook_url, results, job_id, trace_id)
+
+            await send_webhook_notification(webhook_url,webhook_timeout, results, job_id, trace_id)
+
         else:
             logger.info(
                 f"No webhook URL found for job {job_id}, skipping notification, trace_id: {trace_id}",
@@ -208,6 +227,12 @@ async def poll_for_jobs():
     """Poll for pending jobs."""
     while True:
         try:
+            # Ensure Redis connection is active
+            try:
+                await redis_client.ping()                
+            except Exception as e:
+                await redis_client.connect_with_retry()  # Retry indefinitely
+
             # Get pending jobs
             pending_jobs = await redis_client.keys("job:*:status")
             
@@ -241,20 +266,17 @@ async def poll_for_jobs():
             logger.info("Polling task cancelled, shutting down gracefully...")
             break
         except Exception as e:
-            # Generate a trace ID for the error
             logger.error(f"Error polling for jobs: {str(e)}")
             try:
-                await asyncio.sleep(60)
+                await asyncio.sleep(5)  # Reduced sleep time for faster recovery
             except asyncio.CancelledError:
                 logger.info("Polling task cancelled during error recovery, shutting down gracefully...")
                 break
 
-
 async def main():
     """Main worker function."""
     try:
-        # Connect to Redis
-        await redis_client.connect()
+            
         env = config.get("app", {}).get("env", "development")
         version = config.get("app", {}).get("version", "0.1.0")
         logger.info(
@@ -263,6 +285,7 @@ async def main():
         
         # Start polling for jobs
         await poll_for_jobs()
+
     except asyncio.CancelledError:
         logger.info("Worker cancelled, shutting down gracefully...")
     except KeyboardInterrupt:

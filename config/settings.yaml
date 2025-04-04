@@ -51,7 +51,7 @@ webhook:
   enabled: true
   url: "localhost:9000/webhook"
   auth_token: null
-  timeout: 5
+  timeout: 30
   retry_attempts: 3
 
 notifications:

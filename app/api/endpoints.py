@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, BackgroundTasks, 
 from starlette.status import HTTP_202_ACCEPTED, HTTP_404_NOT_FOUND
 from loguru import logger
 
+from app.core.const import JobType
 from app.models.email import EmailSchema, JobResponse, StatusResponse, AnalysisResponse, SubjectAnalysisRequest, BatchSubjectAnalysisResponse
 from app.core.auth import requires_permission
 from app.core.redis import redis_client
@@ -339,7 +340,7 @@ async def analyze_subjects(
         job_id=job_id,
         client_id=key_info["client_id"],
         data=request.model_dump_json(),
-        job_type="subject_analysis"
+        job_type=JobType.SUBJECT_ANALYSIS.value
     )
     
     # Get trace ID from request state or generate a new one

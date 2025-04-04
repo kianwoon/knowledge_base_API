@@ -31,4 +31,4 @@ RUN $HOME/.local/bin/uv pip install --no-cache-dir .
 EXPOSE 8000
 
 # Run the application
-CMD ["sh", "-c", "python run_worker.py & python run_api.py & wait"]
+CMD ["sh", "-c", "unset PORT && python run_api.py &"]

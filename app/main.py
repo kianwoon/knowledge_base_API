@@ -25,15 +25,15 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Connect to Redis
-    await redis_client.connect()
-    
     # Log startup
     env = config.get("app", {}).get("env", "development")
     version = config.get("app", {}).get("version", "0.1.0")
     logger.info(
         f"Mail Analysis API started - Environment: {env}, Version: {version}"
     )
+
+    # Startup: Connect to Redis
+    await redis_client.connect_with_retry()  # Will retry indefinitely
     
     yield
     

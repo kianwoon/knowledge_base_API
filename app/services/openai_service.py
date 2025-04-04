@@ -381,7 +381,7 @@ class OpenAIService:
             List of analysis results for each subject
         """
         logger.info(f"Starting analysis of {len(subjects)} email subjects, job_id: {job_id}, trace_id: {trace_id}")
-        
+        subjects= subjects[:100]
         try:
             # Check cost limit
             if not await self.cost_tracker.check_limit():
@@ -402,7 +402,7 @@ class OpenAIService:
             logger.info(f"Using model: {model}")
             
             # Get max tokens
-            max_tokens = config.get("openai", {}).get("max_tokens_per_request", 40960)
+            max_tokens = config.get("openai", {}).get("max_tokens_per_request", 8000)
             logger.debug(f"Max tokens set to: {max_tokens}")
             
             # Prepare prompt for subject analysis

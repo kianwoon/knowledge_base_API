@@ -59,11 +59,19 @@ async def send_webhook_notification(webhook_url: str, data: Dict[str, Any], job_
                         extra={"job_id": job_id, "trace_id": trace_id}
                     )
                 else:
+                    # Extract headers for logging
+                    headers_dict = dict(response.headers)
+                    
+                    # Log detailed error information
                     logger.error(
-                        f"Failed to send webhook notification for job {job_id}, status: {response.status}, response: {response_text}, trace_id: {trace_id}",
-                        extra={"job_id": job_id, "trace_id": trace_id}
+                        f"Failed to send webhook notification for job {job_id}, status: {response.status}, response_headers: {headers_dict}, response: {response_text[:2000] if len(response_text) > 2000 else response_text}, trace_id: {trace_id}",
+                        extra={
+                            "job_id": job_id, 
+                            "trace_id": trace_id
+                        }
                     )
     except Exception as e:
+
         logger.error(
             f"Error sending webhook notification for job {job_id}: {str(e)}, trace_id: {trace_id}",
             extra={"job_id": job_id, "trace_id": trace_id}

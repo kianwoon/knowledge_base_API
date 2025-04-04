@@ -290,7 +290,7 @@ class OpenAIService:
             logger.info(f"Using model: {model}")
             
             # Get max tokens
-            max_tokens = config.get("openai", {}).get("max_tokens_per_request", 4096)
+            max_tokens = config.get("openai", {}).get("max_tokens_per_request", 40960)
             logger.debug(f"Max tokens set to: {max_tokens}")
             
             # Prepare prompt based on analysis type
@@ -402,7 +402,7 @@ class OpenAIService:
             logger.info(f"Using model: {model}")
             
             # Get max tokens
-            max_tokens = config.get("openai", {}).get("max_tokens_per_request", 4096)
+            max_tokens = config.get("openai", {}).get("max_tokens_per_request", 40960)
             logger.debug(f"Max tokens set to: {max_tokens}")
             
             # Prepare prompt for subject analysis

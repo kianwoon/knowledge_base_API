@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to run the Mail Analysis API locally
+# Script to run the Mail Analysis API locally using uv
 
 # Check if config/settings.yaml file exists
 if [ ! -f config/settings.yaml ]; then
@@ -28,6 +28,10 @@ if [ -z "$ENCRYPTION_KEY" ]; then
     echo "Error: ENCRYPTION_KEY is not set in .env file."
     exit 1
 fi
+
+# Activate uv environment
+echo "Activating uv environment..."
+source .venv/bin/activate
 
 # Start API server in background
 echo "Starting API server..."

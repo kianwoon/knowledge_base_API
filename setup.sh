@@ -1,17 +1,13 @@
 #!/bin/bash
-# Script to set up the Mail Analysis API project
+# Script to set up the Mail Analysis API project using uv
 
-# Create virtual environment
-echo "Creating virtual environment..."
-python -m venv venv
+# Create virtual environment with uv
+echo "Creating virtual environment with uv..."
+uv venv
 
-# Activate virtual environment
-echo "Activating virtual environment..."
-source venv/bin/activate
-
-# Install dependencies
-echo "Installing dependencies..."
-pip install -r requirements.txt
+# Install dependencies with uv from pyproject.toml
+echo "Installing dependencies with uv..."
+uv pip install .
 
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
@@ -48,4 +44,4 @@ fi
 
 echo "Setup completed successfully!"
 echo "Please make sure Redis is running before starting the application."
-echo "To start the application, run: ./run_local.sh"
+echo "To start the application, run: ./run_local_uv.sh"

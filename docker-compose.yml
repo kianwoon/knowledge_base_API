@@ -10,6 +10,9 @@ services:
       - REDIS_PORT=6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENV=${ENV}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - TZ=Asia/Singapore
     depends_on:
       redis:
         condition: service_healthy
@@ -26,6 +29,9 @@ services:
       - REDIS_PORT=6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENV=${ENV}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - TZ=Asia/Singapore
     deploy:
       replicas: 3
     depends_on:

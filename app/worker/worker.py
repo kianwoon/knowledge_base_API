@@ -183,7 +183,7 @@ async def process_job(job_id: str, trace_id: str = None):
         if webhook_enabled and webhook_url:
 
             webhook_timeout = config.get("webhook", {}).get("timeout", 10)
-            webhook_url = webhook_url + job_type
+            webhook_url = webhook_url #+ job_type
             logger.info(
                 f"Using webhook URL: {webhook_url} for job {job_id}, trace_id: {trace_id}",
                 extra={"job_id": job_id, "trace_id": trace_id}

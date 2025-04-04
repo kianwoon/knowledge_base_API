@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -6,19 +6,29 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libmagic1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
-COPY requirements.txt .
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+ENV PATH="$HOME/.local/bin/:$PATH"
+
+# Create a virtual environment
+RUN $HOME/.local/bin/uv venv /opt/venv
+
+# Set environment variables to activate the virtual environment
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
-COPY . .
+COPY . . 
+
+# Install Python dependencies with uv from pyproject.toml
+RUN $HOME/.local/bin/uv pip install --no-cache-dir .
 
 # Expose port
 EXPOSE 8000
 
 # Run the application
-CMD ["sh", "-c", "python run_worker.py & python run_api.py & wait"]
+CMD ["sh", "-c", "unset PORT && python run_api.py &"]

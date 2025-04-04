@@ -6,6 +6,7 @@ Worker module for the Mail Analysis API.
 import os
 import json
 import asyncio
+import aiohttp
 from typing import Dict, Any
 from datetime import datetime
 from loguru import logger
@@ -27,6 +28,46 @@ class DateTimeEncoder(json.JSONEncoder):
                 obj = localize_datetime(obj)
             return obj.isoformat()
         return super().default(obj)
+
+
+async def send_webhook_notification(webhook_url: str, data: Dict[str, Any], job_id: str, trace_id: str):
+    """
+    Send webhook notification with job results.
+    
+    Args:
+        webhook_url: Webhook URL to call
+        data: Data to send in the webhook
+        job_id: Job ID
+        trace_id: Trace ID
+    """
+    try:
+        logger.info(
+            f"Sending webhook notification for job {job_id} to {webhook_url}, trace_id: {trace_id}",
+            extra={"job_id": job_id, "trace_id": trace_id}
+        )
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                webhook_url,
+                json=data,
+                headers={"Content-Type": "application/json"}
+            ) as response:
+                response_text = await response.text()
+                if response.status >= 200 and response.status < 300:
+                    logger.info(
+                        f"Webhook notification sent successfully for job {job_id}, status: {response.status}, trace_id: {trace_id}",
+                        extra={"job_id": job_id, "trace_id": trace_id}
+                    )
+                else:
+                    logger.error(
+                        f"Failed to send webhook notification for job {job_id}, status: {response.status}, response: {response_text}, trace_id: {trace_id}",
+                        extra={"job_id": job_id, "trace_id": trace_id}
+                    )
+    except Exception as e:
+        logger.error(
+            f"Error sending webhook notification for job {job_id}: {str(e)}, trace_id: {trace_id}",
+            extra={"job_id": job_id, "trace_id": trace_id}
+        )
 
 
 async def process_job(job_id: str, trace_id: str = None):
@@ -113,6 +154,22 @@ async def process_job(job_id: str, trace_id: str = None):
             "completed"
         )
         
+        # Get webhook URL - check job data first, then fall back to config
+        webhook_url = config.get("webhook", {}).get("url")
+        webhook_enabled = config.get("webhook", {}).get("enabled", False)
+        # Send webhook notification if URL is available
+        if webhook_enabled and webhook_url:
+            logger.info(
+                f"Using webhook URL: {webhook_url} for job {job_id}, trace_id: {trace_id}",
+                extra={"job_id": job_id, "trace_id": trace_id}
+            )
+            await send_webhook_notification(webhook_url, results, job_id, trace_id)
+        else:
+            logger.info(
+                f"No webhook URL found for job {job_id}, skipping notification, trace_id: {trace_id}",
+                extra={"job_id": job_id, "trace_id": trace_id}
+            )
+
         logger.info(
             f"Job {job_id} completed successfully, trace_id: {trace_id}",
             extra={"job_id": job_id, "trace_id": trace_id}

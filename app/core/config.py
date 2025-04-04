@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_password: Optional[str] = None
     
-    
+    # Environment configuration
+    env: str = "development"
+
     # Logging configuration
     log_level: str = "INFO"
     
@@ -32,6 +34,15 @@ class Settings(BaseSettings):
     # Encryption key
     encryption_key: str
     
+    # web hook settings
+    webhook_enabled: bool = False
+    webhook_timeout: int = 10
+    webhook_retry_attempts: int = 3
+    webhook_auth_token: Optional[str] = None
+    webhook_url: Optional[str] = None
+    
+
+
     # Timezone configuration
     timezone: str = "Asia/Singapore"
     
@@ -142,6 +153,8 @@ def merge_configs(env_config: Settings, file_config: Dict[str, Any]) -> Dict[str
     for key, value in env_config.model_dump().items():
         if key in ["redis_host", "redis_port", "redis_password"]:
             merged_config.setdefault("redis", {})[key.replace("redis_", "")] = value
+        elif key in ["webhook_enabled", "webhook_url"]:
+            merged_config.setdefault("webhook", {})[key.replace("webhook_", "")] = value
         elif key in ["openai_api_key", "openai_backup_api_keys"]:
             merged_config.setdefault("openai", {})[key.replace("openai_", "")] = value
         elif key == "log_level":
@@ -150,7 +163,9 @@ def merge_configs(env_config: Settings, file_config: Dict[str, Any]) -> Dict[str
             merged_config.setdefault("security", {})["encryption_key"] = value
         elif key == "timezone":
             merged_config.setdefault("app", {})["timezone"] = value
-            
+        elif key == "env":
+            merged_config.setdefault("app", {})["env"] = value
+
     # Handle PORT environment variable separately
     if "PORT" in os.environ:
         try:

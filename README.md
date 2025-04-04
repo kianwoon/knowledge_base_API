@@ -35,10 +35,14 @@ Key features:
 ### Prerequisites
 - Python 3.9+
 - Redis
-- RabbitMQ
 - OpenAI API key
+- uv (optional but recommended)
 
 ### Installation
+
+#### Option 1: Using uv (Recommended)
+
+[uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver that can significantly speed up dependency installation.
 
 1. Clone the repository:
 ```bash
@@ -46,14 +50,13 @@ git clone https://github.com/your-organization/mail-analysis-api.git
 cd mail-analysis-api
 ```
 
-2. Install dependencies:
+2. Run the setup script:
 ```bash
-pip install -r requirements.txt
+./setup_uv.sh
 ```
 
 3. Configure the application:
 ```bash
-cp config/settings.example.yaml config/settings.yaml
 # Edit config/settings.yaml with your settings
 ```
 
@@ -63,14 +66,38 @@ export OPENAI_API_KEY=your-openai-api-key
 export REDIS_HOST=localhost
 ```
 
-5. Run the API server:
+5. Run the application:
 ```bash
-python -m app.main
+./run_local_uv.sh
 ```
 
-6. Run worker processes:
+#### Option 2: Using pip
+
+1. Clone the repository:
 ```bash
-python -m app.worker
+git clone https://github.com/your-organization/mail-analysis-api.git
+cd mail-analysis-api
+```
+
+2. Run the setup script:
+```bash
+./setup.sh
+```
+
+3. Configure the application:
+```bash
+# Edit config/settings.yaml with your settings
+```
+
+4. Set up environment variables:
+```bash
+export OPENAI_API_KEY=your-openai-api-key
+export REDIS_HOST=localhost
+```
+
+5. Run the application:
+```bash
+./run_local.sh
 ```
 
 ## API Usage

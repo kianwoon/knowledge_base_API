@@ -70,11 +70,11 @@ class JobWorker:
                 
             # Parse job data
             try:
-                job_data = json.loads(job_data_json)
-                
+                job_data = json.loads(job_data_json)            
+
                 # Log full job data for debugging
                 logger.info(
-                    f"Job data: {job_data_json[:1000]}, job_id: {job_id}, trace_id: {trace_id}"
+                    f"Job data: {job_data_json}, job_id: {job_id}, trace_id: {trace_id}"
                 )
                 
                 # Get appropriate processor for job type
@@ -128,7 +128,7 @@ class JobWorker:
                 # Ensure Redis connection is active
                 try:
                     await redis_client.ping()                
-                except Exception as e:
+                except Exception:
                     await redis_client.connection_manager.connect_with_retry()  # Retry indefinitely
 
                 # Get pending jobs

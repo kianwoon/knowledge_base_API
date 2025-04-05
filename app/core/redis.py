@@ -6,7 +6,7 @@ Cache implementation module for the Mail Analysis API.
 from redis import asyncio as redis
 from loguru import logger
 import asyncio
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Union
 
 from app.core.config import config
 from app.core.interfaces import CacheInterface
@@ -329,7 +329,7 @@ class RedisCache(CacheInterface):
             job_type: Job type (optional)
             expiration: Expiration time in seconds (default: 24 hours)
         """
-        client = await self.connection_manager.connect()
+        await self.connection_manager.connect()
         
         # Store job status
         await self.setex(

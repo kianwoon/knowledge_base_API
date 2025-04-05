@@ -13,7 +13,6 @@ from app.worker.job_worker import JobWorker
 from app.worker.repository import RedisJobRepository
 from app.worker.notifier import DefaultWebhookNotifier
 from app.worker.processors import DefaultJobFactory
-from app.worker.interfaces import JobRepository, Notifier, JobFactory
 
 async def main():
     """

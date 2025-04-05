@@ -6,7 +6,6 @@ This module provides mock implementations of external services for testing.
 
 import json
 import asyncio
-import random
 from typing import Dict, List, Any
 from datetime import datetime
 from loguru import logger

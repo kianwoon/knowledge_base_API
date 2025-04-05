@@ -3,8 +3,7 @@
 Job processor implementations for the Worker module.
 """
 
-import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from loguru import logger
 
 from app.core.const import JobType

@@ -5,19 +5,17 @@ API endpoints for the Mail Analysis API.
 
 import json
 import time
-from typing import Dict, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, Header, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, Request
 from starlette.status import HTTP_202_ACCEPTED, HTTP_404_NOT_FOUND
 from loguru import logger
 
 from app.core.const import JobType
-from app.models.email import EmailSchema, JobResponse, StatusResponse, AnalysisResponse, SubjectAnalysisRequest, BatchSubjectAnalysisResponse
+from app.models.email import EmailSchema, JobResponse, StatusResponse, SubjectAnalysisRequest
 from app.core.auth import requires_permission
 from app.core.redis import redis_client
 from app.core.snowflake import generate_id
 from app.core.config import localize_datetime
-from app.services.openai_service import openai_service
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -335,6 +333,11 @@ async def analyze_subjects(
     # Generate job ID using Snowflake ID
     job_id = generate_id()
     
+    # Get trace ID from request state or generate a new one
+    trace_id = getattr(req.state, "trace_id", generate_id())
+    
+    logger.info(f"Subjects received: {request.model_dump_json()}, job {job_id}, trace_id: {trace_id}")
+    
     # Store job data in Redis
     await redis_client.store_job_data(
         job_id=job_id,
@@ -342,10 +345,7 @@ async def analyze_subjects(
         data=request.model_dump_json(),
         job_type=JobType.SUBJECT_ANALYSIS.value
     )
-    
-    # Get trace ID from request state or generate a new one
-    trace_id = getattr(req.state, "trace_id", generate_id())
-    
+
     # Add job to processing queue
     # background_tasks.add_task(process_subjects, job_id, trace_id)
     

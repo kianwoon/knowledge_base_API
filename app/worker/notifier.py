@@ -47,13 +47,12 @@ class DefaultWebhookNotifier(Notifier):
             trace_id: Trace ID
         """
         try:
+ 
 
-            strData = json.dumps(data)
-            logger.info(
-                    f"Sending webhook notification for job {job_id} to {self.webhook_url}, trace_id: {trace_id}, data: {strData[:1000]}",
-                )
-        
             if self.webhook_enabled and self.webhook_url:
+
+                logger.info(f"Sending webhook notification for job {job_id} to {self.webhook_url}, trace_id: {trace_id}, data: {json.dumps(data)}")
+        
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
                         self.webhook_url,
@@ -61,15 +60,15 @@ class DefaultWebhookNotifier(Notifier):
                         headers={"Content-Type": "application/json"},
                         timeout=aiohttp.ClientTimeout(total=self.webhook_timeout)
                     ) as response:
-                        response_text = await response.text()
+                        
+                        response_log = json.dumps(await response.json())
                         # Extract headers for logging
                         headers_dict = dict(response.headers)
-                        response_log = json.dumps(response_text, indent=2)
+                        # response_log = json.dumps(response_text, indent=2)
 
                         # Log the complete response with headers and status
                         logger.info(
-                            f"response: {response_log}",
-                            extra={"job_id": job_id, "trace_id": trace_id}
+                            f"Webhook response: {response_log} for job {job_id}, status: {response.status}, trace_id: {trace_id}"
                         )
                         if response.status >= 200 and response.status < 300:
                             logger.info(
@@ -79,7 +78,7 @@ class DefaultWebhookNotifier(Notifier):
                         else:
                             # Log detailed error information
                             logger.error(
-                                f"Failed to send webhook notification for job {job_id}, status: {response.status}, response_headers: {headers_dict}, response: {response_text[:2000] if len(response_text) > 2000 else response_text}, trace_id: {trace_id}",
+                                f"Failed to send webhook notification for job {job_id}, status: {response.status}, response_headers: {headers_dict}, trace_id: {trace_id}",
                                 extra={
                                     "job_id": job_id, 
                                     "trace_id": trace_id

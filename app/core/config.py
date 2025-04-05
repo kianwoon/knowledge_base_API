@@ -5,11 +5,10 @@ Configuration module for the Mail Analysis API.
 
 import os
 import sys
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import yaml
 import pytz
-from datetime import datetime, timezone
-from pydantic import Field, field_validator, model_validator
+from datetime import datetime
 from pydantic_settings import BaseSettings
 from loguru import logger
 

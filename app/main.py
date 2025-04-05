@@ -3,10 +3,8 @@
 Main application module for the Mail Analysis API.
 """
 
-import os
-import sys
 import time
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR

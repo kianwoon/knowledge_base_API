@@ -7,7 +7,7 @@ import os
 import re
 import time
 import json
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any
 from openai import AsyncOpenAI
 from loguru import logger
 
@@ -287,10 +287,12 @@ class OpenAIService(AIServiceInterface):
             logger.debug(f"Sanitized text length: {len(sanitized_text)} characters")
             
             # Call OpenAI API
-            logger.info(f"Calling OpenAI API with model {model} for {analysis_type}")
+            logger.info(f"Calling OpenAI API with model {model} for {analysis_type}, system: {system_prompt}, user: {sanitized_text}")   
             start_time = time.time()
             
             try:
+                     
+                
                 response = await client.chat.completions.create(
                     model=model,
                     messages=[
@@ -396,8 +398,13 @@ class OpenAIService(AIServiceInterface):
             # Format the subjects as a list in the prompt
             subjects_text = "\n".join([f"- \"{subject}\"" for subject in subjects])
             
+            # Sanitize user text
+            sanitized_text = sanitize_prompt(subjects_text)
+            logger.debug(f"Sanitized text length: {len(sanitized_text)} characters")
+
             # Call OpenAI API
-            logger.info(f"Calling OpenAI API with model {model} for subject analysis")
+            logger.info(f"Calling OpenAI API with model {model} for subject analysis, job {job_id}, trace_id: {trace_id}, system: {system_prompt}, user: {sanitized_text}")         
+            
             start_time = time.time()
             
             try:
@@ -405,13 +412,16 @@ class OpenAIService(AIServiceInterface):
                     model=model,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": subjects_text}
+                        {"role": "user", "content": sanitized_text}
                     ],
                     max_tokens=max_tokens,
                     temperature=0.3,
                     response_format={"type": "json_object"}
                 )
-                logger.info(f"OpenAI API call successful for subject analysis")
+                logger.info("OpenAI API call successful for subject analysis")
+                # Call OpenAI API
+                logger.info(f"OpenAI API call response: job {job_id}, trace_id: {trace_id}, response: {response.to_json()}")
+
             except Exception as api_error:
                 logger.error(f"OpenAI API call failed: {str(api_error)}")
                 raise

@@ -6,10 +6,10 @@ Authentication module for the Mail Analysis API.
 import time
 import json
 import secrets
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from datetime import datetime, timedelta
 import uuid
-from fastapi import Depends, HTTPException, Header, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader
 from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN, HTTP_429_TOO_MANY_REQUESTS
 from loguru import logger

@@ -3,7 +3,6 @@
 Notifier factory implementation for the Worker module.
 """
 
-from typing import Dict, Any
 from loguru import logger
 
 from app.worker.interfaces import Notifier, NotifierFactory

@@ -381,7 +381,7 @@ class QdrantJobRepository(JobRepository):
         return JobType.EMBEDDING.value
         
     
-    async def store_job_results(self, job_id: str, results: Dict[str, Any], expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def store_job_results(self, job_id: str, result: Dict[str, Any], expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Store job results in Qdrant.
         
@@ -391,49 +391,25 @@ class QdrantJobRepository(JobRepository):
             expiration: Expiration time in seconds (default: 7 days) - not used in Qdrant
         """
         try:
-            # Connect to Qdrant
-            client = await qdrant_client.connect_with_retry()
+ 
+            # Save embeddings to Qdrant using the QdrantClientManager
+            embeddings = result.get("embeddings", [])
+            metadata = result.get("_metadata", {})
+            job_data = result.get("job_data", {})
+            extra_data = {
+                "subject": job_data.get("subject", ""),
+                "date": job_data.get("date", ""),
+                "sender": job_data.get("sender", ""),
+                "recipient": job_data.get("recipient", "")
+            }
             
-            # Ensure collection exists
-            await self._ensure_collection_exists()
-            
-            # Get owner from results
-            owner = results.get("owner", "unknown")
-            
-            # Store analysis chart entry
-            chart_data = results.get("chart_data", [])
-            
-            # Create a dummy vector for now (in production, this would be an actual embedding)
-            # In a real implementation, you would generate embeddings for the chart data
-            dummy_vector = [0.0] * self.vector_size
-            
-            # Create analysis chart entry using the Qdrant model
-            chart_items = []
-            for item in chart_data:
-                chart_items.append({
-                    "tag": item.get("tag", ""),
-                    "cluster": item.get("cluster", ""),
-                    "subject": item.get("subject", "")
-                })
-            
-            analysis_chart = QdrantAnalysisChartEntry(
+            # Save embeddings using the QdrantClientManager
+            await qdrant_client.save_embeddings(
                 job_id=job_id,
-                owner=owner,
-                status="completed",
-                chart_data=chart_items
-            )
-            
-            # Store the analysis chart entry
-            client.upsert(
-                collection_name=self.collection_name,
-                points=[
-                    {
-                        "id": f"{job_id}-analysis",
-                        "vector": dummy_vector,
-                        "payload": analysis_chart.model_dump()
-                    }
-                ]
-            )
+                embeddings=embeddings,
+                metadata=metadata,
+                extra_data=extra_data
+            )      
             
             logger.info(f"Stored job results for job {job_id} in Qdrant")
         except Exception as e:

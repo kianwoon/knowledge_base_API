@@ -3,12 +3,15 @@
 Job processor implementations for the Worker module.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 from loguru import logger
+import uuid
+import os
 
 from app.core.const import JobType
 from app.services.openai_service import openai_service
 from app.worker.interfaces import JobProcessor, JobFactory
+from app.core.qdrant import qdrant_client
 
 
 class SubjectAnalysisProcessor(JobProcessor):
@@ -79,7 +82,12 @@ class EmbeddingProcessor(JobProcessor):
             Processing results including the embedding vector(s)
         """
  
-        text = job_data.get("subject", "") + job_data.get("raw_text", "")
+       
+        mail_body_html=job_data.get("raw_text", "")
+        
+        text = job_data.get("subject", "") + mail_body_html
+
+
         if not text: 
           logger.info(f"No text provided for embedding, job {job_id}, trace_id: {trace_id}, text length: {len(text)}")
           return {"job_id": job_id, "trace_id": trace_id, "embedding": None}
@@ -109,6 +117,7 @@ class EmbeddingProcessor(JobProcessor):
         
         # Log completion
         chunk_count = result.get("chunk_count", 1)
+        
         logger.info(
             f"Completed embedding job {job_id}, trace_id: {trace_id}, chunks: {chunk_count}",
             extra={"job_id": job_id, "trace_id": trace_id}

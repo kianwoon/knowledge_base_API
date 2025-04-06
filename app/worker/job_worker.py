@@ -87,6 +87,7 @@ class JobWorker:
             
             # Add job ID to results
             results["job_id"] = job_id
+            results["job_data"] = job_data
             
             # Store results
             await self.repository.store_job_results(job_id, results)
@@ -144,9 +145,9 @@ class JobWorker:
                     if status == "pending":
                         # Update job status to processing
                         await self.repository.update_job_status(job_id, "processing", 60 * 60 * 24)
-                        
+                        await self.process_job(job_id, generate_id())
                         # Process job with a new trace ID
-                        asyncio.create_task(self.process_job(job_id, generate_id()))
+                        #asyncio.create_task(self.process_job(job_id, generate_id()))
                 
                 # Sleep for 1 second
                 try:

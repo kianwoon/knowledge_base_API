@@ -115,6 +115,95 @@ class QdrantClientManager:
             qdrant_config = config.get("qdrant", {})
             self._collection_name = qdrant_config.get("collection_name", "email_knowledge")
         return self._collection_name
+    
+    async def save_embeddings(self, job_id: str, embeddings: list, metadata: dict = None, extra_data: dict = None) -> dict:
+        """
+        Save embeddings to Qdrant.
+        
+        Args:
+            job_id: Job ID
+            trace_id: Trace ID
+            embeddings: List of embedding items with 'chunk_index', 'embedding', and 'text'
+            metadata: Additional metadata for the embeddings
+            extra_data: Additional data to include in each point's payload
+            
+        Returns:
+            Dict containing status of the save operation
+        """
+        try:
+            # Get client and collection name
+            client = await self.connect_with_retry()
+            collection_name = "email_knowledge_base"
+            
+            if not embeddings:
+                logger.warning(f"No embeddings to save for job {job_id}")
+                return {
+                    "saved": False,
+                    "reason": "No embeddings provided"
+                }
+                
+            # Create collection if it doesn't exist
+            try:
+                collections_list = client.get_collections().collections
+                collection_names = [collection.name for collection in collections_list]
+                
+                if collection_name not in collection_names:
+                    logger.info(f"Creating collection {collection_name} for embeddings")
+                    vector_size = len(embeddings[0]["embedding"])
+                    client.create_collection(
+                        collection_name=collection_name,
+                        vectors_config=models.VectorParams(
+                            size=vector_size,
+                            distance=models.Distance.COSINE
+                        )
+                    )
+            except Exception as e:
+                logger.error(f"Error checking/creating collection: {str(e)}")
+                
+            # Prepare points for Qdrant
+            points = []
+            for embedding_item in embeddings:
+                # Generate a unique ID for each embedding
+                point_id = job_id # f"{job_id}-{embedding_item['chunk_index']}"
+                
+                # Create the point payload
+                payload = {
+                    "chunk_index": embedding_item["chunk_index"],
+                    "text": embedding_item["text"],
+                    "type": "embedding",
+                    "metadata": metadata or {}
+                }
+                
+                # Add any extra data to the payload
+                if extra_data:
+                    payload.update(extra_data)
+                
+                points.append(models.PointStruct(
+                    id=point_id,
+                    vector=embedding_item["embedding"],
+                    payload=payload
+                ))
+            
+            # Upsert points into the collection
+            client.upsert(
+                collection_name=collection_name,
+                points=points
+            )
+            
+            logger.info(f"Saved {len(points)} embeddings to Qdrant collection {collection_name} for job {job_id}")
+            
+            return {
+                "saved": True,
+                "collection": collection_name,
+                "points": len(points)
+            }
+                
+        except Exception as e:
+            logger.error(f"Error saving embeddings to Qdrant: {str(e)}")
+            return {
+                "saved": False,
+                "error": str(e)
+            }
 
 
 # Create singleton instance

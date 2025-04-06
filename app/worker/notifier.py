@@ -224,7 +224,7 @@ class DefaultNotifier(Notifier):
         try:
 
             logger.info(
-                f"Default notification sent successfully for job {job_id}, trace_id: {trace_id}"               
+                f"Default No Notification for job {job_id}, trace_id: {trace_id}"               
             )
             
         except Exception as e:

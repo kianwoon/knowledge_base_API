@@ -478,54 +478,23 @@ class OpenAIService(AIServiceInterface):
         Returns:
             System prompt
         """
-        if analysis_type == "subject_analysis":
-            return """
-            You are an AI assistant that analyzes email subject lines. Your task is to categorize each subject line and identify its business context.
+        # Get prompts from config
+        prompts = config.get("prompts", {})
+        
+        # Get specific prompt if available, otherwise use default
+        prompt = prompts.get(analysis_type)
+        if prompt:
+            return prompt
             
-            For each subject line, provide the following information:
-            - tag: the business category (choose one from: timesheet, approval, staffing, sow, finance-review, general)
-            - cluster: a high-level grouping or topic (e.g., month, client, project, system name) — avoid personal names or email addresses
-            - subject: the original subject line
-            
-            Analyze the provided email subject lines and return a JSON array where each item includes these three fields.
-            
-            Example response format:
-            {
-              "results": [
-                {
-                  "tag": "timesheet",
-                  "cluster": "March 2024",
-                  "subject": "Timesheet approval for March 2024"
-                },
-                {
-                  "tag": "approval",
-                  "cluster": "Project X",
-                  "subject": "Please approve design for Project X"
-                }
-              ]
-            }
-            
-            Return your analysis as a valid JSON object with a "results" array containing an entry for each subject line.
-            """
-        elif analysis_type == "email_analysis":
-            return """
-            You are an AI assistant that analyzes emails. Your task is to extract key information from the email and categorize it.
-            
-            For each email, provide the following information:
-            - category: the business category (choose one from: timesheet, approval, staffing, sow, finance-review, general)
-            - priority: the priority level (high, medium, low)
-            - action_required: whether action is required (true, false)
-            - summary: a brief summary of the email content
-            
-            Return your analysis as a valid JSON object.
-            """
-        else:
-            # Default prompt for unknown analysis type
-            return f"""
-            You are an AI assistant that analyzes text. Your task is to analyze the provided text for {analysis_type}.
-            
-            Return your analysis as a valid JSON object.
-            """
+        # Fall back to default prompt if specific one not found
+        default_prompt = prompts.get("default", """
+        You are an AI assistant that analyzes text. Your task is to analyze the provided text for {analysis_type}.
+        
+        Return your analysis as a valid JSON object.
+        """)
+        
+        # Replace placeholder with analysis type
+        return default_prompt.replace("{analysis_type}", analysis_type)
 
 
 # Create default instances

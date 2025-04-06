@@ -23,6 +23,7 @@ dependencies = [
 
     # Task Queue
     "redis>=4.6.0",
+    "qdrant-client>=1.13.3",
 
     # File Processing
     "python-magic>=0.4.27",

@@ -11,3 +11,4 @@ class JobType(Enum):
     
     SUBJECT_ANALYSIS = "analysis"
     MAIL_ANALYSIS = "mail_analysis"
+    EMBEDDING = "text_embedding"

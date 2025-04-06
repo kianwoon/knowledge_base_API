@@ -55,27 +55,66 @@ class EmailAnalysisProcessor(JobProcessor):
         Returns:
             Processing results
         """
-        # Handle 'from_' field if present (convert to 'from' for compatibility)
-        if 'from_' in job_data and 'from' not in job_data:
-            logger.info(
-                f"Converting 'from_' to 'from' for job {job_id}, trace_id: {trace_id}",
-                extra={"job_id": job_id, "trace_id": trace_id}
-            )
-            job_data['from'] = job_data['from_']
-        elif 'from' not in job_data and 'from_' not in job_data:
-            logger.error(
-                f"Neither 'from' nor 'from_' found in email data for job {job_id}, trace_id: {trace_id}",
-                extra={"job_id": job_id, "trace_id": trace_id}
-            )
-            # Add a default 'from' field to prevent errors
-            job_data['from'] = {'name': 'Unknown', 'email': 'unknown@example.com'}
-        
         logger.info(
             f"Processing email analysis job {job_id}, trace_id: {trace_id}",
             extra={"job_id": job_id, "trace_id": trace_id}
         )
         
         return await openai_service.analyze_email(job_data, job_id, trace_id)
+
+
+class EmbeddingProcessor(JobProcessor):
+    """Processor for text embedding jobs."""
+    
+    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str) -> Dict[str, Any]:
+        """
+        Process a text embedding job.
+        
+        Args:
+            job_data: Job data containing text to embed
+            job_id: Job ID
+            trace_id: Trace ID
+            
+        Returns:
+            Processing results including the embedding vector(s)
+        """
+ 
+        text = job_data.get("subject", "") + job_data.get("raw_text", "")
+        if not text: 
+          logger.info(f"No text provided for embedding, job {job_id}, trace_id: {trace_id}, text length: {len(text)}")
+          return {"job_id": job_id, "trace_id": trace_id, "embedding": None}
+        
+        # Get custom chunk parameters if provided
+        chunk_size = job_data.get("chunk_size", None)
+        chunk_overlap = job_data.get("chunk_overlap", None)
+        
+        logger.info(
+            f"Processing embedding job {job_id}, trace_id: {trace_id}, text length: {len(text)}",
+            extra={"job_id": job_id, "trace_id": trace_id}
+        )
+        
+        # Call the embeding_text method from OpenAI service
+        # If custom chunking parameters were provided, they will be passed to the service
+        if chunk_size or chunk_overlap:
+            # Create custom chunker with provided parameters
+            from app.utils.text_chunker import TextChunker
+            custom_chunker = TextChunker(chunk_size, chunk_overlap)
+            openai_service.text_chunker = custom_chunker
+            
+        result = await openai_service.embeding_text(text)
+        
+        # Add job and trace IDs to the result
+        result["job_id"] = job_id
+        result["trace_id"] = trace_id
+        
+        # Log completion
+        chunk_count = result.get("chunk_count", 1)
+        logger.info(
+            f"Completed embedding job {job_id}, trace_id: {trace_id}, chunks: {chunk_count}",
+            extra={"job_id": job_id, "trace_id": trace_id}
+        )
+        
+        return result
 
 
 class DefaultJobFactory(JobFactory):
@@ -93,6 +132,8 @@ class DefaultJobFactory(JobFactory):
         """
         if job_type == JobType.SUBJECT_ANALYSIS.value:
             return SubjectAnalysisProcessor()
+        elif job_type == JobType.EMBEDDING.value:
+            return EmbeddingProcessor()
         else:
             # Default to email analysis
             return EmailAnalysisProcessor()

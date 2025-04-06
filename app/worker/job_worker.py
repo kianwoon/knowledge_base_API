@@ -11,9 +11,8 @@ from app.core.config import config
 from app.core.snowflake import generate_id
 from app.worker.interfaces import JobRepository, Notifier, JobFactory
 from app.worker.repository import RedisJobRepository
-from app.worker.notifier import DefaultWebhookNotifier
+from app.worker.notifier import DefaultNotifier
 from app.worker.processors import DefaultJobFactory
-from app.core.redis import redis_client
 
 
 class JobWorker:
@@ -40,7 +39,7 @@ class JobWorker:
 
         # Dependency injection for better testability
         self.repository = repository or RedisJobRepository()
-        self.notifier = notifier or DefaultWebhookNotifier()
+        self.notifier = notifier or DefaultNotifier()
         self.job_factory = job_factory or DefaultJobFactory()
     
     async def process_job(self, job_id: str, trace_id: str = None) -> None:
@@ -127,9 +126,9 @@ class JobWorker:
             try:
                 # Ensure Redis connection is active
                 try:
-                    await redis_client.ping()                
+                    await self.repository.ping()                
                 except Exception:
-                    await redis_client.connection_manager.connect_with_retry()  # Retry indefinitely
+                    await self.repository.connect_with_retry()  # Retry connection
 
                 # Get pending jobs
                 pending_jobs = await self.repository.get_pending_jobs()
@@ -190,5 +189,5 @@ class JobWorker:
             raise
         finally:
             # Ensure Redis connection is closed
-            await redis_client.disconnect()
+            await self.repository.disconnect()
             logger.info("Worker shutdown complete")

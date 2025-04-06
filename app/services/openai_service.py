@@ -14,6 +14,7 @@ from loguru import logger
 from app.core.config import config
 from app.core.interfaces import KeyManagerInterface, CostTrackerInterface, AIServiceInterface, CacheInterface
 from app.core.redis import redis_client
+from app.utils.text_chunker import TextChunker
 
 
 class OpenAIKeyManager(KeyManagerInterface):
@@ -46,6 +47,7 @@ class OpenAIKeyManager(KeyManagerInterface):
             Exception: If no API keys are available
         """
         try:
+            return self.primary_key
             # Check if primary key is rate limited
             primary_limited = await self.cache.get("openai_limited:primary")
             
@@ -241,7 +243,115 @@ class OpenAIService(AIServiceInterface):
         """
         self.key_manager = key_manager or OpenAIKeyManager()
         self.cost_tracker = cost_tracker or OpenAICostTracker()
+        self.text_chunker = TextChunker()
         
+    async def embeding_text(self, text: str) -> Dict[str, Any]:
+        """Get embedding for text using OpenAI API.
+        
+        Args:
+            text: Text to embed
+            
+        Returns:
+            Dictionary containing embedding vector and metadata
+        """
+        logger.info(f"Starting embedding generation for text of length: {len(text)} characters")
+        
+        try:
+            # Check cost limit
+            #todo: Uncomment this when cost tracking is implemented
+            # if not await self.cost_tracker.check_limit():
+            #     logger.warning("OpenAI API monthly cost limit reached")
+            #     raise Exception("OpenAI API monthly cost limit reached")
+                
+            # Get API key
+            api_key = await self.key_manager.get_api_key()
+            logger.debug("Successfully retrieved API key")
+            
+            # Initialize OpenAI client with API key
+            client = AsyncOpenAI(api_key=api_key)
+            logger.debug("Initialized AsyncOpenAI client")
+            
+            # Get embedding model from config
+            embedding_model = config.get("openai", {}).get("embedding_model", "text-embedding-3-small")
+            logger.info(f"Using embedding model: {embedding_model}")
+            
+            # Chunk the text if needed
+            chunks = self.text_chunker.chunk_text(text)
+            logger.info(f"Text split into {len(chunks)} chunks (size: {self.text_chunker.chunk_size}, overlap: {self.text_chunker.chunk_overlap})")
+            
+            # Store all embeddings
+            all_embeddings = []
+            total_tokens = 0
+            start_time = time.time()
+            
+            # Process each chunk
+            for i, chunk in enumerate(chunks):
+                try:
+                    chunk_response = await client.embeddings.create(
+                        model=embedding_model,
+                        input=chunk
+                    )
+                    
+                    # Add embedding to list
+                    all_embeddings.append({
+                        "chunk_index": i,
+                        "embedding": chunk_response.data[0].embedding,
+                        "text": chunk[:100] + "..." if len(chunk) > 100 else chunk  # Store preview of chunk text
+                    })
+                    
+                    # Track tokens - Updated to access the usage property directly with fallback
+                    chunk_tokens = chunk_response.usage.total_tokens if hasattr(chunk_response, 'usage') else len(chunk) // 4
+                    total_tokens += chunk_tokens
+                    
+                    logger.debug(f"Generated embedding for chunk {i+1}/{len(chunks)}")
+                    
+                except Exception as chunk_error:
+                    logger.error(f"Error generating embedding for chunk {i+1}: {str(chunk_error)}")
+                    # Continue with other chunks even if one fails
+            
+            # Calculate elapsed time
+            elapsed_time = time.time() - start_time
+            
+            # Track usage
+            try:
+                await self.cost_tracker.track_usage(
+                    embedding_model,
+                    total_tokens
+                )
+            except Exception as e:
+                logger.warning(f"Failed to track embedding usage: {str(e)}")
+            
+            # Return results
+            result = {
+                "embeddings": all_embeddings,
+                "chunk_count": len(chunks),
+                "model": embedding_model,
+                "_metadata": {
+                    "model": embedding_model,
+                    "chunks": len(chunks),
+                    "chunk_size": self.text_chunker.chunk_size,
+                    "chunk_overlap": self.text_chunker.chunk_overlap,
+                    "total_tokens": total_tokens,
+                    "elapsed_time": elapsed_time
+                }
+            }
+            
+            return result
+            
+        except Exception as e:
+            # Check if it's a rate limit error based on error message
+            error_message = str(e).lower()
+            if "rate limit" in error_message:
+                # Mark key as rate limited
+                await self.key_manager.mark_key_limited(api_key)
+                
+                # Try again with a different key
+                return await self.embeding_text(text)
+            else:
+                # For other types of errors
+                logger.error(f"Error generating embedding: {str(e)}")
+                raise
+
     async def analyze_text(self, text: str, analysis_type: str) -> Dict[str, Any]:
         """Analyze text using OpenAI API.
         

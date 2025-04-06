@@ -193,3 +193,40 @@ class DefaultSMSNotifier(Notifier):
             
         except Exception as e:
             logger.error(f"Error sending SMS notification for job {job_id}, trace_id: {trace_id} An unexpected error occurred: {repr(e)}")
+
+
+class DefaultNotifier(Notifier):
+    """Default implementation of the Notifier interface."""
+    def __init__(
+        self
+    ):
+        """
+        Initialize the job worker with dependencies.
+        
+        Args:
+            webhook_url: Webhook URL to call
+            webhook_enabled: Flag to enable or disable webhook notifications
+            webhook_timeout: Timeout for the webhook request in seconds
+        """
+
+        # Get webhook URL and settings from config
+
+
+    async def send_notification(self, data: Dict[str, Any], job_id: str, trace_id: str) -> None:
+        """
+        No notification.
+        
+        Args:
+            data: Data to send in the webhook
+            job_id: Job ID
+            trace_id: Trace ID
+        """
+        try:
+
+            logger.info(
+                f"Default notification sent successfully for job {job_id}, trace_id: {trace_id}"               
+            )
+            
+        except Exception as e:
+            logger.error(f"Error sending Default notification for job {job_id}, trace_id: {trace_id} An unexpected error occurred: {repr(e)}") #demo only
+    

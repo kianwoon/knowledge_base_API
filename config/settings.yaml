@@ -16,6 +16,12 @@ redis:
   port: 6379
   password: null  # null means no password
 
+qdrant:
+  host: "localhost"
+  port: 6333
+  api_key: null  # null means no API key
+  timeout: 10.0  # connection timeout in seconds
+
 rate_limits:
   tiers:
     free:

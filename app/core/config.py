@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_password: Optional[str] = None
     
+    # Qdrant configuration
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
+    qdrant_api_key: Optional[str] = None
+    qdrant_timeout: float = 10.0
+    qdrant_collection_name: str = "email_knowledge"
+    
     # Environment configuration
     env: str = "development"
 
@@ -156,6 +163,8 @@ def merge_configs(env_config: Settings, file_config: Dict[str, Any]) -> Dict[str
             merged_config.setdefault("webhook", {})[key.replace("webhook_", "")] = value
         elif key in ["openai_api_key", "openai_backup_api_keys"]:
             merged_config.setdefault("openai", {})[key.replace("openai_", "")] = value
+        elif key in ["qdrant_host", "qdrant_port", "qdrant_api_key", "qdrant_timeout", "qdrant_collection_name"]:
+            merged_config.setdefault("qdrant", {})[key.replace("qdrant_", "")] = value
         elif key == "log_level":
             merged_config.setdefault("logging", {})["level"] = value
         elif key == "encryption_key":

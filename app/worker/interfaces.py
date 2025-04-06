@@ -34,6 +34,32 @@ class JobRepository(ABC):
     Interface for job data storage operations.
     Following the Dependency Inversion Principle.
     """
+    @abstractmethod
+    async def connect_with_retry(self) -> None:
+        """
+        Connect to the job repository with retry logic.
+        """
+        pass
+
+    @abstractmethod
+    async def ping(self) -> None:
+        """
+        Ping the job repository to check connectivity.
+        """
+        pass
+
+    @abstractmethod
+    async def get_job_id(self, job_key: str) -> Optional[str]:
+        """
+        Get job ID by job key.
+        
+        Args:
+            job_key: Job key
+            
+        Returns:
+            Job ID or None if not found
+        """
+        pass
     
     @abstractmethod
     async def get_job_data(self, job_id: str) -> Optional[str]:

@@ -36,7 +36,7 @@ class QdrantClientManager:
         try:
             # Ping the server
             self._client.get_collections()
-            logger.info("Qdrant server is reachable")
+            # logger.info("Qdrant server is reachable")
         except UnexpectedResponse as e:
             logger.error(f"Unexpected response from Qdrant server: {str(e)}")
             raise
@@ -168,15 +168,10 @@ class QdrantClientManager:
                 # Create the point payload
                 payload = {
                     "chunk_index": embedding_item["chunk_index"],
-                    "text": embedding_item["text"],
-                    "type": "embedding",
-                    "metadata": metadata or {}
+                    "content": embedding_item["content"],
+                    "metadata": extra_data or {}
                 }
-                
-                # Add any extra data to the payload
-                if extra_data:
-                    payload.update(extra_data)
-                
+                 
                 points.append(models.PointStruct(
                     id=point_id,
                     vector=embedding_item["embedding"],

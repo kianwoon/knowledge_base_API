@@ -109,8 +109,8 @@ class JobWorker:
                 raise Exception(f"Invalid job data for job {job_id}")
             
             # Add job ID to results
-            results["job_id"] = job_id
-            results["job_data"] = job_data
+            # results["job_id"] = job_id
+            # results["job_data"] = job_data
 
             # Store results
             await self.repository.store_job_results(job_id, results)

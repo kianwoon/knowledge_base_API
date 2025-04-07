@@ -33,6 +33,7 @@ dependencies = [
     "PyPDF2>=3.0.1",
     "bleach>=6.0.0",
     "html2text>=2024.2.26",
+    "pandas>=2.2.3",
 
     # OpenAI Integration
     "openai>=1.0.0",

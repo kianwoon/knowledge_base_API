@@ -47,7 +47,7 @@ class OpenAIKeyManager(KeyManagerInterface):
             Exception: If no API keys are available
         """
         try:
-            return self.primary_key
+            #return self.primary_key
             # Check if primary key is rate limited
             primary_limited = await self.cache.get("openai_limited:primary")
             
@@ -258,10 +258,9 @@ class OpenAIService(AIServiceInterface):
         
         try:
             # Check cost limit
-            #todo: Uncomment this when cost tracking is implemented
-            # if not await self.cost_tracker.check_limit():
-            #     logger.warning("OpenAI API monthly cost limit reached")
-            #     raise Exception("OpenAI API monthly cost limit reached")
+            if not await self.cost_tracker.check_limit():
+                logger.warning("OpenAI API monthly cost limit reached")
+                raise Exception("OpenAI API monthly cost limit reached")
                 
             # Get API key
             api_key = await self.key_manager.get_api_key()
@@ -283,30 +282,40 @@ class OpenAIService(AIServiceInterface):
             total_tokens = 0
             start_time = time.time()
             
-            # Process each chunk
-            for i, chunk in enumerate(chunks):
+            # Use batching for better throughput
+            # Process chunks in batches instead of one at a time
+            batch_size = 10  # Adjust based on your needs
+            start_idx = 0
+            
+            while start_idx < len(chunks):
+                batch_chunks = chunks[start_idx:start_idx+batch_size]
                 try:
-                    chunk_response = await client.embeddings.create(
+                    batch_response = await client.embeddings.create(
                         model=embedding_model,
-                        input=chunk
+                        input=batch_chunks
                     )
                     
-                    # Add embedding to list
-                    all_embeddings.append({
-                        "chunk_index": i,
-                        "embedding": chunk_response.data[0].embedding,
-                        "text": chunk[:100] + "..." if len(chunk) > 100 else chunk  # Store preview of chunk text
-                    })
+                    # Process batch results
+                    for j, embedding_data in enumerate(batch_response.data):
+                        chunk_idx = start_idx + j
+                        if chunk_idx < len(chunks):
+                            all_embeddings.append({
+                                "chunk_index": chunk_idx,
+                                "embedding": embedding_data.embedding,
+                                # Include more contextual info for better RAG retrieval
+                                "content": chunks[chunk_idx],
+                                "content_preview": chunks[chunk_idx][:100] + "..." if len(chunks[chunk_idx]) > 100 else chunks[chunk_idx]
+                            })
                     
-                    # Track tokens - Updated to access the usage property directly with fallback
-                    chunk_tokens = chunk_response.usage.total_tokens if hasattr(chunk_response, 'usage') else len(chunk) // 4
-                    total_tokens += chunk_tokens
+                    # Track tokens
+                    batch_tokens = batch_response.usage.total_tokens
+                    total_tokens += batch_tokens
                     
-                    logger.debug(f"Generated embedding for chunk {i+1}/{len(chunks)}")
-                    
-                except Exception as chunk_error:
-                    logger.error(f"Error generating embedding for chunk {i+1}: {str(chunk_error)}")
-                    # Continue with other chunks even if one fails
+                    logger.debug(f"Generated embeddings for chunks {start_idx+1}-{start_idx+len(batch_chunks)}/{len(chunks)}")
+                except Exception as batch_error:
+                    logger.error(f"Error generating embeddings for batch starting at {start_idx}: {str(batch_error)}")
+                
+                start_idx += batch_size
             
             # Calculate elapsed time
             elapsed_time = time.time() - start_time
@@ -399,8 +408,7 @@ class OpenAIService(AIServiceInterface):
             logger.info(f"Calling OpenAI API with model {model} for {analysis_type}, system: {system_prompt}, user: {sanitized_text}")   
             start_time = time.time()
             
-            try:
-                     
+            try:                     
                 
                 response = await client.chat.completions.create(
                     model=model,
@@ -476,7 +484,7 @@ class OpenAIService(AIServiceInterface):
             Analysis results for each subject
         """
         logger.info(f"Starting analysis of {len(subjects)} email subjects, job_id: {job_id}, trace_id: {trace_id}")
-        subjects = subjects[:100]  # Limit to 100 subjects
+        subjects = subjects[:100]  # Todo Limit to 100 subjects
         
         try:
             # Check cost limit

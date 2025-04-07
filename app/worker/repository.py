@@ -280,7 +280,7 @@ class QdrantJobRepository(JobRepository):
                 
                 client.create_payload_index(
                     collection_name=self.collection_name,
-                    field_name="job_id",
+                    field_name="id",
                     field_schema="keyword"
                 )
                 
@@ -380,7 +380,7 @@ class QdrantJobRepository(JobRepository):
         return JobType.EMBEDDING.value
         
     
-    async def store_job_results(self, job_id: str, result: Dict[str, Any], expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def store_job_results(self, job_id: str, results: Dict[str, Any], expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Store job results in Qdrant.
         
@@ -390,28 +390,21 @@ class QdrantJobRepository(JobRepository):
             expiration: Expiration time in seconds (default: 7 days) - not used in Qdrant
         """
         try:
- 
-            # Save embeddings to Qdrant using the QdrantClientManager
-            embeddings = result.get("embeddings", [])
-            # metadata = result.get("_metadata", {})
-            job_data = result.get("job_data", {})
-            extra_data = {
-                "owner": job_data.get("owner", ""),
-                "type": job_data.get("type", ""),
-                "sensitivity": job_data.get("sensitivity", ""),
-                "subject": job_data.get("subject", ""),
-                "date": job_data.get("date", ""),
-                "sender": job_data.get("sender", ""),
-                "source": job_data.get("source", ""),
-                "source_id": job_id,
-            }
             
-            # Save embeddings using the QdrantClientManager
-            await qdrant_client.save_embeddings(
-                job_id=job_id,
-                embeddings=embeddings,
-                extra_data=extra_data
-            )      
+            for result in results:
+                # Store job results in qdrant                  
+
+                # Save embeddings to Qdrant using the QdrantClientManager
+                embeddings = result.get("embeddings", [])
+                # metadata = result.get("_metadata", {})
+                extra_data = result.get("extra_data", {}) 
+            
+                # Save embeddings using the QdrantClientManager
+                await qdrant_client.save_embeddings(
+                    job_id=job_id,
+                    embeddings=embeddings,
+                    extra_data=extra_data
+                )      
             
             logger.info(f"Stored job results for job {job_id} in Qdrant")
         except Exception as e:
@@ -515,7 +508,14 @@ class QdrantJobRepository(JobRepository):
                 with_vectors=False,
                 limit=1  # Limit to 10 pending jobs at a time
             )
-            
+
+            # Uncomment the following lines if you want to test data     
+            # results = client.retrieve(
+            #         collection_name=self.collection_name,
+            #         ids=["6b6f67bd-5c91-43a7-865c-dc2dc8ef31d1"],
+            #         with_payload=["job_id", "analysis_status", "type"],
+            #         with_vectors=False,
+            #     )
             # Extract job IDs and format as Redis-compatible keys
             pending_jobs = []
             job_ids = set()  # Use a set to deduplicate job IDs

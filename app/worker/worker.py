@@ -36,7 +36,7 @@ async def main():
         
         # Run both workers concurrently
         await asyncio.gather(
-            #redis_worker.run(),
+            redis_worker.run()            ,
             qdrant_worker.run()
         )
         

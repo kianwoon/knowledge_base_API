@@ -95,8 +95,8 @@ class QdrantClientManager:
         """Disconnect from Qdrant server."""
         if self._client is not None:
             # Close client connection
-            self._client.close()
-            self._client = None
+            # self._client.close()
+            # self._client = None
             logger.info("Disconnected from Qdrant server")
     
     @property

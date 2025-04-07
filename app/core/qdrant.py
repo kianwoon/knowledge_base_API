@@ -3,9 +3,9 @@
 Qdrant client module for the Mail Analysis API.
 """
 
-import os
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional
+import uuid
 from loguru import logger
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -122,7 +122,6 @@ class QdrantClientManager:
         
         Args:
             job_id: Job ID
-            trace_id: Trace ID
             embeddings: List of embedding items with 'chunk_index', 'embedding', and 'text'
             metadata: Additional metadata for the embeddings
             extra_data: Additional data to include in each point's payload
@@ -133,7 +132,7 @@ class QdrantClientManager:
         try:
             # Get client and collection name
             client = await self.connect_with_retry()
-            collection_name = "email_knowledge_base"
+            collection_name = self.collection_name 
             
             if not embeddings:
                 logger.warning(f"No embeddings to save for job {job_id}")
@@ -164,7 +163,7 @@ class QdrantClientManager:
             points = []
             for embedding_item in embeddings:
                 # Generate a unique ID for each embedding
-                point_id = job_id # f"{job_id}-{embedding_item['chunk_index']}"
+                point_id = uuid.uuid4().hex
                 
                 # Create the point payload
                 payload = {

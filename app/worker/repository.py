@@ -13,7 +13,6 @@ from app.worker.interfaces import JobRepository
 from app.core.config import localize_datetime
 from app.models.qdrant_mail import QdrantEmailEntry, QdrantQueryCriteria, QdrantQueryCriteriaEntry, QdrantAnalysisChartEntry
 from app.models.email import EmailSchema, EmailAnalysis
-from qdrant_client.http import models
 
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
@@ -394,20 +393,23 @@ class QdrantJobRepository(JobRepository):
  
             # Save embeddings to Qdrant using the QdrantClientManager
             embeddings = result.get("embeddings", [])
-            metadata = result.get("_metadata", {})
+            # metadata = result.get("_metadata", {})
             job_data = result.get("job_data", {})
             extra_data = {
+                "owner": job_data.get("owner", ""),
+                "type": job_data.get("type", ""),
+                "sensitivity": job_data.get("sensitivity", ""),
                 "subject": job_data.get("subject", ""),
                 "date": job_data.get("date", ""),
                 "sender": job_data.get("sender", ""),
-                "recipient": job_data.get("recipient", "")
+                "source": job_data.get("source", ""),
+                "source_id": job_id,
             }
             
             # Save embeddings using the QdrantClientManager
             await qdrant_client.save_embeddings(
                 job_id=job_id,
                 embeddings=embeddings,
-                metadata=metadata,
                 extra_data=extra_data
             )      
             

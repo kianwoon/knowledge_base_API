@@ -42,6 +42,29 @@ class JobWorker:
         self.notifier = notifier or DefaultNotifier()
         self.job_factory = job_factory or DefaultJobFactory()
     
+    async def connect(self) -> None:
+        """
+        Connect to required services.
+        
+        Establishes connections to the repository and notifier.
+        """
+        try:
+            logger.info("Connecting to services...")
+            
+            # Connect to repository (Redis or other storage)
+            await self.repository.connect_with_retry()
+            logger.info("Repository connection established")
+            
+            # Connect to notifier if it has a connect method
+            if hasattr(self.notifier, 'connect'):
+                await self.notifier.connect()
+                logger.info("Notifier connection established")
+                
+            logger.info("All service connections established")
+        except Exception as e:
+            logger.error(f"Error connecting to services: {str(e)}")
+            raise
+    
     async def process_job(self, job_id: str, trace_id: str = None) -> None:
         """
         Process a job.
@@ -88,7 +111,7 @@ class JobWorker:
             # Add job ID to results
             results["job_id"] = job_id
             results["job_data"] = job_data
-            
+
             # Store results
             await self.repository.store_job_results(job_id, results)
             
@@ -177,7 +200,7 @@ class JobWorker:
             logger.info(
                 f"Mail Analysis Worker started - Environment: {env}, Version: {version}"
             )
-            
+            await self.connect()
             # Start polling for jobs
             await self.poll_for_jobs()
 

@@ -3,15 +3,13 @@
 Job processor implementations for the Worker module.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 from loguru import logger
-import uuid
-import os
 
 from app.core.const import JobType
 from app.services.openai_service import openai_service
 from app.worker.interfaces import JobProcessor, JobFactory
-from app.core.qdrant import qdrant_client
+from app.utils.text_utils import html_to_markdown
 
 
 class SubjectAnalysisProcessor(JobProcessor):
@@ -81,23 +79,28 @@ class EmbeddingProcessor(JobProcessor):
         Returns:
             Processing results including the embedding vector(s)
         """
- 
-       
-        mail_body_html=job_data.get("raw_text", "")
+        # Get email body HTML and convert to markdown for better processing
+        mail_body_html = job_data.get("raw_text", "")
+        mail_body_md = html_to_markdown(mail_body_html)
         
-        text = job_data.get("subject", "") + mail_body_html
+        # Combine subject with cleaned body text
+        subject = job_data.get("subject", "")
+        text = f"{subject}\n\n{mail_body_md}" if subject else mail_body_md
 
+        # Track both original and processed text lengths
+        original_length = len(mail_body_html)
+        processed_length = len(text)
 
         if not text: 
-          logger.info(f"No text provided for embedding, job {job_id}, trace_id: {trace_id}, text length: {len(text)}")
-          return {"job_id": job_id, "trace_id": trace_id, "embedding": None}
+            logger.info(f"No text provided for embedding, job {job_id}, trace_id: {trace_id}")
+            return {"job_id": job_id, "trace_id": trace_id, "embedding": None}
         
         # Get custom chunk parameters if provided
         chunk_size = job_data.get("chunk_size", None)
         chunk_overlap = job_data.get("chunk_overlap", None)
         
         logger.info(
-            f"Processing embedding job {job_id}, trace_id: {trace_id}, text length: {len(text)}",
+            f"Processing embedding job {job_id}, trace_id: {trace_id}, original length: {original_length}, processed length: {processed_length}",
             extra={"job_id": job_id, "trace_id": trace_id}
         )
         

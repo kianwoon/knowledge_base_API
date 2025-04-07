@@ -269,10 +269,9 @@ class OpenAIService(AIServiceInterface):
             
             # Initialize OpenAI client with API key
             client = AsyncOpenAI(api_key=api_key)
-            logger.debug("Initialized AsyncOpenAI client")
-            
-            # Get embedding model from config
+            logger.debug("Initialized AsyncOpenAI client") 
             embedding_model = config.get("openai", {}).get("embedding_model", "text-embedding-3-small")
+
             logger.info(f"Using embedding model: {embedding_model}")
             
             # Chunk the text if needed

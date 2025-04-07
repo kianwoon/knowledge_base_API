@@ -27,11 +27,8 @@ COPY . .
 # Install Python dependencies with uv from pyproject.toml
 RUN $HOME/.local/bin/uv pip install --no-cache-dir .
 
-# Make entrypoint script executable
-RUN chmod +x /app/entrypoint.sh
-
 # Expose port
 EXPOSE 8000
 
-# Run the application using our shell script
-CMD ["/app/entrypoint.sh"]
+# Run the application
+CMD ["sh", "-c", "python run_worker.py & python run_api.py & wait"]

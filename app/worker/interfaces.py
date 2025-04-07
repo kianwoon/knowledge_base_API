@@ -14,7 +14,7 @@ class JobProcessor(ABC):
     """
     
     @abstractmethod
-    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str) -> Dict[str, Any]:
+    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str, owner: str = None) -> Dict[str, Any]:
         """
         Process a job and return results.
         
@@ -22,6 +22,7 @@ class JobProcessor(ABC):
             job_data: Job data
             job_id: Job ID
             trace_id: Trace ID
+            owner: Owner of the job (optional)
             
         Returns:
             Processing results
@@ -62,7 +63,7 @@ class JobRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_job_data(self, job_id: str) -> Optional[str]:
+    async def get_job_data(self, job_id: str, owner: str = None) -> Optional[str]:
         """
         Get job data.
         
@@ -75,7 +76,7 @@ class JobRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_job_type(self, job_id: str) -> Optional[str]:
+    async def get_job_type(self, job_id: str, owner: str = None) -> Optional[str]:
         """
         Get job type.
         
@@ -88,7 +89,7 @@ class JobRepository(ABC):
         pass
     
     @abstractmethod
-    async def store_job_results(self, job_id: str, results: Dict[str, Any], expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def store_job_results(self, job_id: str, results: Dict[str, Any], owner: str = None, expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Store job results.
         
@@ -100,7 +101,7 @@ class JobRepository(ABC):
         pass
     
     @abstractmethod
-    async def update_job_status(self, job_id: str, status: str, expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def update_job_status(self, job_id: str, status: str, owner: str = None, expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Update job status.
         
@@ -134,12 +135,13 @@ class JobRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_job_status(self, job_key: str) -> Optional[str]:
+    async def get_job_status(self, job_key: str, owner: str = None) -> Optional[str]:
         """
         Get job status.
         
         Args:
             job_key: Job key
+            owner: Owner of the job
             
         Returns:
             Job status or None if not found

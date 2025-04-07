@@ -45,7 +45,7 @@ class RedisJobRepository(JobRepository):
             logger.error(f"Error connecting to Redis: {str(e)}")
             raise
 
-    async def get_job_data(self, job_id: str) -> Optional[str]:
+    async def get_job_data(self, job_id: str, owner: str = None) -> Optional[str]:
         """
         Get job data from Redis.
         
@@ -64,7 +64,7 @@ class RedisJobRepository(JobRepository):
             return None
     
 
-    async def get_job_type(self, job_id: str) -> Optional[str]:
+    async def get_job_type(self, job_id: str, owner: str = None) -> Optional[str]:
         """
         Get job type from Redis.
         
@@ -82,7 +82,7 @@ class RedisJobRepository(JobRepository):
             logger.error(f"Error getting job type for job {job_id}: {str(e)}")
             return None
     
-    async def store_job_results(self, job_id: str, results: Dict[str, Any], expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def store_job_results(self, job_id: str, results: Dict[str, Any], owner: str = None, expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Store job results in Redis.
         
@@ -103,7 +103,7 @@ class RedisJobRepository(JobRepository):
             logger.error(f"Error storing job results for job {job_id}: {str(e)}")
             raise
     
-    async def update_job_status(self, job_id: str, status: str, expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def update_job_status(self, job_id: str, status: str, owner: str = None, expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Update job status in Redis.
         
@@ -195,7 +195,7 @@ class RedisJobRepository(JobRepository):
             logger.error(f"Error getting pending jobs with Lua script: {str(e)}")
             return []
 
-    async def get_job_status(self, job_key: str) -> Optional[str]:
+    async def get_job_status(self, job_key: str, owner: str = None) -> Optional[str]:
         """
         Get job status from Redis.
         
@@ -219,19 +219,22 @@ class QdrantJobRepository(JobRepository):
     schema defined in qdrant_email_knowledge_full_schema.md.
     """
     
-    def __init__(self, collection_name: str = "email_knowledge", vector_size: int = 1536):
+    def __init__(self, source_collection_name: str = "_email_knowledge_base", target_collection_name: str = "_knowledge_base", vector_size: int = 1536):
         """Initialize QdrantJobRepository.
         
         Args:
-            collection_name: Qdrant collection name (default: email_knowledge)
+            source_collection_name: Default Qdrant source collection name (default: _email_knowledge_base)
+            target_collection_name: Default Qdrant target collection name (default: _knowledge_base)
             vector_size: Size of the vector embeddings (default: 1536 for OpenAI embeddings)
         """
-        self.collection_name = collection_name
+        self.source_collection_name = source_collection_name
+        self.target_collection_name = target_collection_name
         self.vector_size = vector_size
     
+ 
+
     def get_job_id(self, job_key: str) -> str:
         """Retrieve job ID based on the job key."""
-
         return job_key.split(":")[-1]
 
     async def ping(self) -> None:
@@ -251,88 +254,36 @@ class QdrantJobRepository(JobRepository):
             logger.error(f"Error connecting to Qdrant: {str(e)}")
             raise
 
-    async def _ensure_collection_exists(self) -> None:
-        """Ensure that the collection exists in Qdrant."""
+    async def _ensure_collection_exists(self, collection_name: str = None) -> None:
+        """Ensure that the collection exists in Qdrant.
+        
+        Args:
+            collection_name: Optional collection name. If not provided, uses the default.
+        """
         try:
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
-            
+             
             # Check if collection exists
             collections = client.get_collections().collections
             collection_names = [collection.name for collection in collections]
             
-            if self.collection_name not in collection_names:
-                # Create collection with the schema from qdrant_email_knowledge_full_schema.md
+            if collection_name not in collection_names:
+                # Create collection with the schema
                 client.create_collection(
-                    collection_name=self.collection_name,
+                    collection_name=collection_name,
                     vectors_config={
                         "size": self.vector_size,
                         "distance": "Cosine"
                     }
-                )
+                ) 
                 
-                # Create payload schema - common fields
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="type",
-                    field_schema="keyword"
-                )
-                
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="id",
-                    field_schema="keyword"
-                )
-                
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="owner",
-                    field_schema="keyword"
-                )
-                
-                # Create payload schema - email specific fields
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="sender",
-                    field_schema="keyword"
-                )
-                
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="subject",
-                    field_schema="text"
-                )
-                
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="date",
-                    field_schema="keyword"
-                )
-                
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="folder",
-                    field_schema="keyword"
-                )
-                
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="tags",
-                    field_schema="keyword"
-                )
-                
-                client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="status",
-                    field_schema="keyword"
-                )
-                
-                logger.info(f"Created Qdrant collection: {self.collection_name}")
+                logger.info(f"Created Qdrant collection: {collection_name}")
         except Exception as e:
             logger.error(f"Error ensuring Qdrant collection exists: {str(e)}")
             raise
     
-    async def get_job_data(self, job_id: str) -> Optional[str]:
+    async def get_job_data(self, job_id: str, owner: str = None) -> Optional[str]:
         """
         Get job data from Qdrant.
         
@@ -341,33 +292,33 @@ class QdrantJobRepository(JobRepository):
             
         Returns:
             Job data as JSON string or None if not found
-        """
-        try:
-            # Connect to Qdrant
-            client = await qdrant_client.connect_with_retry()
-            
-            # Ensure collection exists
-            await self._ensure_collection_exists()
-            
-            # Query for query_criteria entry with the given job_id
-            results = client.retrieve(
-                    collection_name=self.collection_name,
-                    ids=[job_id],
-                    with_vectors=False,
-                )
-            if not results:
-                return None
-                
+        """ 
+        # Connect to Qdrant
+        client = await qdrant_client.connect_with_retry()
+        
+        # We need to search across all collections for this job_id
+        collection_name = owner + self.source_collection_name
+
+        # Query for query_criteria entry with the given job_id
+ 
+        results = client.retrieve(
+            collection_name=collection_name,
+            ids=[job_id],
+            with_vectors=False,
+        )
+        
+        if results:
             # Extract query criteria from the payload
             job_data = results[0].payload
             
             # Convert to JSON string
             return json.dumps(job_data)
-        except Exception as e:
-            logger.error(f"Error getting job data for job {job_id} from Qdrant: {str(e)}")
+        else:
             return None
+ 
+  
     
-    async def get_job_type(self, job_id: str) -> Optional[str]:
+    async def get_job_type(self, job_id: str, owner: str = None) -> Optional[str]:
         """
         Get job type from Qdrant.
         
@@ -380,7 +331,7 @@ class QdrantJobRepository(JobRepository):
         return JobType.EMBEDDING.value
         
     
-    async def store_job_results(self, job_id: str, results: Dict[str, Any], expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def store_job_results(self, job_id: str, results: Dict[str, Any], owner: str = None, expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Store job results in Qdrant.
         
@@ -390,51 +341,70 @@ class QdrantJobRepository(JobRepository):
             expiration: Expiration time in seconds (default: 7 days) - not used in Qdrant
         """
         try:
+            # Extract owner from results if available
+ 
+            
+            # Determine the collection name based on owner
+            collection_name =  owner + self.target_collection_name
             
             for result in results:
                 # Store job results in qdrant                  
-
-                # Save embeddings to Qdrant using the QdrantClientManager
                 embeddings = result.get("embeddings", [])
-                # metadata = result.get("_metadata", {})
                 extra_data = result.get("extra_data", {}) 
             
                 # Save embeddings using the QdrantClientManager
                 await qdrant_client.save_embeddings(
                     job_id=job_id,
                     embeddings=embeddings,
-                    extra_data=extra_data
+                    collection_name=collection_name,
+                    extra_data=extra_data                  
                 )      
             
-            logger.info(f"Stored job results for job {job_id} in Qdrant")
+            logger.info(f"Stored job results for job {job_id} in Qdrant collection {collection_name}")
         except Exception as e:
             logger.error(f"Error storing job results for job {job_id} in Qdrant: {str(e)}")
             raise
     
-    async def update_job_status(self, job_id: str, status: str, expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def update_job_status(self, job_id: str, status: str, owner: str = None, expiration: int = 60 * 60 * 24 * 7) -> None:
         """
         Update job status in Qdrant.
         
         Args:
             job_id: Job ID
             status: Job status
+            owner: Owner of the job (optional)
             expiration: Expiration time in seconds (default: 7 days) - not used in Qdrant
         """
         try:
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
-            # Ensure collection exists
-            await self._ensure_collection_exists()
+            # We need to search across all collections for this job_id
+      
+            collection_name = owner+ self.source_collection_name
+    
+            try:
+                # Check if job_id exists in this collection
+                results = client.retrieve(
+                    collection_name=collection_name,
+                    ids=[job_id],
+                    with_vectors=False,
+                )
+                
+                if results:
+                    # Update the status field
+                    client.set_payload(
+                        collection_name=collection_name,
+                        payload={"analysis_status": status},
+                        points=[job_id]
+                    )
+                    logger.info(f"Updated job status for job {job_id} in collection {collection_name} to {status}")
+                    return
+            except Exception as e:
+                # Skip if collection doesn't exist or other issues
+                raise Exception("Collection not found")
             
-                            # Update the status field
-            client.set_payload(
-                    collection_name=self.collection_name,
-                    payload={"analysis_status": status},
-                    points=[job_id]
-                ) 
-            
-            logger.info(f"Updated job status for job {job_id} in Qdrant to {status}")
+            logger.warning(f"Could not find job {job_id} in any collection to update status")
         except Exception as e:
             logger.error(f"Error updating job status for job {job_id} in Qdrant: {str(e)}")
             raise
@@ -452,38 +422,51 @@ class QdrantJobRepository(JobRepository):
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
-            # Ensure collection exists
-            await self._ensure_collection_exists()
+            # We need to search across all collections for this job_id
+            collections = client.get_collections().collections
+            collection_names = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
             
-            # Find all points with the given job_id
-            results = client.search(
-                collection_name=self.collection_name,
-                query_filter={"key": "job_id", "match": {"value": job_id}},
-                limit=100  # Assuming there won't be more than 100 entries for a job
-            )
-            
-            # Update error for all entries
-            for result in results:
-                point_id = result.id
+            for collection_name in collection_names:
+                # Ensure collection exists
+                await self._ensure_collection_exists(collection_name)
                 
-                # Update the error field
-                client.set_payload(
-                    collection_name=self.collection_name,
-                    payload={
-                        "error": error,
-                        "status": "failed"
-                    },
-                    points=[point_id]
-                )
-            
-            logger.info(f"Stored job error for job {job_id} in Qdrant")
+                try:
+                    # Find all points with the given job_id in this collection
+                    results = client.search(
+                        collection_name=collection_name,
+                        query_filter={"key": "job_id", "match": {"value": job_id}},
+                        limit=100  # Assuming there won't be more than 100 entries for a job
+                    )
+                    
+                    # Update error for all entries
+                    for result in results:
+                        point_id = result.id
+                        
+                        # Update the error field
+                        client.set_payload(
+                            collection_name=collection_name,
+                            payload={
+                                "error": error,
+                                "status": "failed"
+                            },
+                            points=[point_id]
+                        )
+                    
+                    if results:
+                        logger.info(f"Stored job error for job {job_id} in collection {collection_name}")
+                        return
+                except:
+                    # Skip if collection doesn't exist or other issues
+                    continue
+                    
+            logger.warning(f"Could not find job {job_id} in any collection to store error")
         except Exception as e:
             logger.error(f"Error storing job error for job {job_id} in Qdrant: {str(e)}")
             raise
     
     async def get_pending_jobs(self) -> List[str]:
         """
-        Get pending jobs from Qdrant.
+        Get pending jobs from Qdrant across all user collections.
         
         Returns:
             List of pending job keys in the format "job:{job_id}:status"
@@ -492,46 +475,51 @@ class QdrantJobRepository(JobRepository):
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
-            # Ensure collection exists
-            await self._ensure_collection_exists()
+            # Get all collections that match the pattern
+            collections = client.get_collections().collections
+            email_collections = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
             
-            # Query for entries with analysis_status="pending"
-            results, next_page_offset = client.scroll(
-                collection_name=self.collection_name,
-                scroll_filter={
-                    "must": [
-                        {"key": "analysis_status", "match": {"value": "pending"}},
-                        {"key": "type", "match": {"value": "email"}}
-                    ]
-                },
-                with_payload=["job_id", "analysis_status", "type"],
-                with_vectors=False,
-                limit=1  # Limit to 10 pending jobs at a time
-            )
-
-            # Uncomment the following lines if you want to test data     
-            # results = client.retrieve(
-            #         collection_name=self.collection_name,
-            #         ids=["6b6f67bd-5c91-43a7-865c-dc2dc8ef31d1"],
-            #         with_payload=["job_id", "analysis_status", "type"],
-            #         with_vectors=False,
-            #     )
-            # Extract job IDs and format as Redis-compatible keys
+         
             pending_jobs = []
             job_ids = set()  # Use a set to deduplicate job IDs
             
-            for point in results:
-                job_id = point.id
-                if job_id and job_id not in job_ids:
-                    job_ids.add(job_id)
-                    pending_jobs.append(f"job:{job_id}:status")
+            # Search each collection for pending jobs
+            for collection_name in email_collections:
+                try:
+                    owner = collection_name.replace(self.source_collection_name, "")
+
+                    # Query for entries with analysis_status="pending"
+                    results, next_page_offset = client.scroll(
+                        collection_name=collection_name,
+                        scroll_filter={
+                            "must": [
+                                {"key": "analysis_status", "match": {"value": "pending"}},
+                                {"key": "type", "match": {"value": "email"}}
+                            ]
+                        },
+                        with_payload=["job_id", "analysis_status", "type"],
+                        with_vectors=False,
+                        limit=1  # Limit to 5 pending jobs per collection
+                    )
+                    
+                    # Extract job IDs and format as Redis-compatible keys
+                    for point in results:
+                        job_id = point.id
+                        if job_id and job_id not in job_ids:
+                            job_ids.add(job_id)
+                            pending_jobs.append(f"job:{job_id}:{owner}")
+                            
+                    logger.info(f"Found {len(results)} pending jobs in collection {collection_name}")
+                except Exception as e:
+                    logger.error(f"Error querying collection {collection_name}: {str(e)}")
+                    continue
             
             return pending_jobs
         except Exception as e:
             logger.error(f"Error getting pending jobs from Qdrant: {str(e)}")
             return []
     
-    async def get_job_status(self, job_key: str) -> Optional[str]:
+    async def get_job_status(self, job_key: str, owner: str = None) -> Optional[str]:
         """
         Get job status from Qdrant.
         
@@ -547,33 +535,26 @@ class QdrantJobRepository(JobRepository):
             
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
-            
-            # Ensure collection exists
-            await self._ensure_collection_exists()
-            
-            # Query for any entry with the given job_id
-            # results = client.query_points(
-            #     collection_name=self.collection_name,
-            #     query=str(job_id), 
-            # )
-            
-            results = client.retrieve(
-                    collection_name=self.collection_name,
-                    ids=[job_id],
-                    with_payload=["job_id", "analysis_status", "type"],
-                    with_vectors=False,
-                )
-  
+             
+            collection_name = owner + self.source_collection_name
  
-            if not results:
-                return None
-                
-            # Return the status of the entry
-            return results[0].payload.get("analysis_status")
-        except Exception as e:
-            logger.error(f"Error getting job analysis_status for key {job_key} from Qdrant: {str(e)}")
+            # Query for any entry with the given job_id
+            results = client.retrieve(
+                collection_name=collection_name,
+                ids=[job_id],
+                with_payload=["job_id", "analysis_status", "type"],
+                with_vectors=False,
+            )
+            
+            if results:
+                # Return the status of the entry
+                return results[0].payload.get("analysis_status")
+        
+                    
             return None
-
+        except Exception as e:
+            logger.error(f"Error getting job status for key {job_key} from Qdrant: {str(e)}")
+            return None
 
     async def store_email(self, email: EmailSchema, job_id: str, owner: str, folder: str = "Inbox") -> str:
         """
@@ -592,8 +573,11 @@ class QdrantJobRepository(JobRepository):
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
+            # Get the collection name for this owner
+            collection_name = self._get_email_collection_name(owner)
+            
             # Ensure collection exists
-            await self._ensure_collection_exists()
+            await self._ensure_collection_exists(collection_name)
             
             # Create email entry using the Qdrant model
             email_entry = QdrantEmailEntry.from_email_schema(
@@ -612,7 +596,7 @@ class QdrantJobRepository(JobRepository):
             
             # Store the email entry
             client.upsert(
-                collection_name=self.collection_name,
+                collection_name=collection_name,
                 points=[
                     {
                         "id": point_id,
@@ -644,8 +628,11 @@ class QdrantJobRepository(JobRepository):
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
+            # Get the collection name for this owner
+            collection_name = self._get_email_collection_name(owner)
+            
             # Ensure collection exists
-            await self._ensure_collection_exists()
+            await self._ensure_collection_exists(collection_name)
             
             # Create query criteria entry using the Qdrant model
             criteria = QdrantQueryCriteria(
@@ -669,7 +656,7 @@ class QdrantJobRepository(JobRepository):
             
             # Store the query criteria entry
             client.upsert(
-                collection_name=self.collection_name,
+                collection_name=collection_name,
                 points=[
                     {
                         "id": point_id,
@@ -701,8 +688,11 @@ class QdrantJobRepository(JobRepository):
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
+            # Get the collection name for this owner
+            collection_name = self._get_email_collection_name(owner)
+            
             # Ensure collection exists
-            await self._ensure_collection_exists()
+            await self._ensure_collection_exists(collection_name)
             
             # Create analysis chart entry using the Qdrant model
             analysis_chart = QdrantAnalysisChartEntry.from_email_analysis(
@@ -719,7 +709,7 @@ class QdrantJobRepository(JobRepository):
             
             # Store the analysis chart entry
             client.upsert(
-                collection_name=self.collection_name,
+                collection_name=collection_name,
                 points=[
                     {
                         "id": point_id,
@@ -749,25 +739,35 @@ class QdrantJobRepository(JobRepository):
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
-            # Ensure collection exists
-            await self._ensure_collection_exists()
+            # We need to search across all collections for this job_id
+            collections = client.get_collections().collections
+            collection_names = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
             
-            # Query for email entries with the given job_id
-            results = client.search(
-                collection_name=self.collection_name,
-                query_filter={
-                    "must": [
-                        {"key": "job_id", "match": {"value": job_id}},
-                        {"key": "type", "match": {"value": "email"}}
-                    ]
-                },
-                limit=100  # Limit to 100 emails per job
-            )
-            
-            # Extract email entries
             emails = []
-            for result in results:
-                emails.append(result.payload)
+            
+            for collection_name in collection_names:
+                # Ensure collection exists
+                await self._ensure_collection_exists(collection_name)
+                
+                # Query for email entries with the given job_id
+                try:
+                    results = client.search(
+                        collection_name=collection_name,
+                        query_filter={
+                            "must": [
+                                {"key": "job_id", "match": {"value": job_id}},
+                                {"key": "type", "match": {"value": "email"}}
+                            ]
+                        },
+                        limit=100  # Limit to 100 emails per job
+                    )
+                    
+                    # Extract email entries
+                    for result in results:
+                        emails.append(result.payload)
+                except:
+                    # Skip if collection doesn't exist or other issues
+                    continue
             
             return emails
         except Exception as e:
@@ -788,26 +788,35 @@ class QdrantJobRepository(JobRepository):
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
-            # Ensure collection exists
-            await self._ensure_collection_exists()
+            # We need to search across all collections for this job_id
+            collections = client.get_collections().collections
+            collection_names = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
             
-            # Query for analysis chart entry with the given job_id
-            results = client.search(
-                collection_name=self.collection_name,
-                query_filter={
-                    "must": [
-                        {"key": "job_id", "match": {"value": job_id}},
-                        {"key": "type", "match": {"value": "analysis_chart"}}
-                    ]
-                },
-                limit=1
-            )
-            
-            if not results:
-                return None
+            for collection_name in collection_names:
+                # Ensure collection exists
+                await self._ensure_collection_exists(collection_name)
                 
-            # Return the analysis chart entry
-            return results[0].payload
+                # Query for analysis chart entry with the given job_id
+                try:
+                    results = client.search(
+                        collection_name=collection_name,
+                        query_filter={
+                            "must": [
+                                {"key": "job_id", "match": {"value": job_id}},
+                                {"key": "type", "match": {"value": "analysis_chart"}}
+                            ]
+                        },
+                        limit=1
+                    )
+                    
+                    if results:
+                        # Return the analysis chart entry
+                        return results[0].payload
+                except:
+                    # Skip if collection doesn't exist or other issues
+                    continue
+                
+            return None
         except Exception as e:
             logger.error(f"Error getting analysis chart for job {job_id} from Qdrant: {str(e)}")
             return None

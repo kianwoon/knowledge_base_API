@@ -54,8 +54,7 @@ class QdrantClientManager:
         host = qdrant_config.get("host", "localhost")
         port = qdrant_config.get("port", 6333)
         api_key = qdrant_config.get("api_key")
-        timeout = qdrant_config.get("timeout", 10.0)
-        self._collection_name = qdrant_config.get("collection_name", "email_knowledge")
+        timeout = qdrant_config.get("timeout", 10.0) 
         
         try:
             # Create Qdrant client
@@ -116,7 +115,7 @@ class QdrantClientManager:
             self._collection_name = qdrant_config.get("collection_name", "email_knowledge")
         return self._collection_name
     
-    async def save_embeddings(self, job_id: str, embeddings: list, metadata: dict = None, extra_data: dict = None) -> dict:
+    async def save_embeddings(self, job_id: str, embeddings: list, collection_name: str, metadata: dict = None, extra_data: dict = None) -> dict:
         """
         Save embeddings to Qdrant.
         
@@ -131,8 +130,7 @@ class QdrantClientManager:
         """
         try:
             # Get client and collection name
-            client = await self.connect_with_retry()
-            collection_name = self.collection_name 
+            client = await self.connect_with_retry() 
             
             if not embeddings:
                 logger.warning(f"No embeddings to save for job {job_id}")

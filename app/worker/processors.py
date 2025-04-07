@@ -16,7 +16,7 @@ from app.utils.text_utils import html_to_markdown, convert_to_text
 class SubjectAnalysisProcessor(JobProcessor):
     """Processor for subject analysis jobs."""
     
-    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str) -> Dict[str, Any]:
+    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str, owner: str = None ) -> Dict[str, Any]:
         """
         Process a subject analysis job.
         
@@ -45,7 +45,7 @@ class SubjectAnalysisProcessor(JobProcessor):
 class EmailAnalysisProcessor(JobProcessor):
     """Processor for email analysis jobs."""
     
-    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str) -> Dict[str, Any]:
+    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str, owner: str = None) -> Dict[str, Any]:
         """
         Process an email analysis job.
         
@@ -53,6 +53,7 @@ class EmailAnalysisProcessor(JobProcessor):
             job_data: Job data
             job_id: Job ID
             trace_id: Trace ID
+            owner: Owner of the job (optional)
             
         Returns:
             Processing results
@@ -68,7 +69,7 @@ class EmailAnalysisProcessor(JobProcessor):
 class EmbeddingProcessor(JobProcessor):
     """Processor for text embedding jobs."""
     
-    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str) -> Dict[str, Any]:
+    async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str, owner: str = None) -> Dict[str, Any]:
         """
         Process a text embedding job.
         

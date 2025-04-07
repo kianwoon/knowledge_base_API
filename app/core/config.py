@@ -26,8 +26,9 @@ class Settings(BaseSettings):
     qdrant_port: int = 6333
     qdrant_api_key: Optional[str] = None
     qdrant_timeout: float = 10.0
-    qdrant_collection_name: str = "email_knowledge"
-    
+    qdrant_collection_suffix_email: str = "_email_knowledge_base"
+    qdrant_collection_suffix_knowledge: str = "_knowledge_base"
+
     # Environment configuration
     env: str = "development"
 

@@ -65,13 +65,14 @@ class JobWorker:
             logger.error(f"Error connecting to services: {str(e)}")
             raise
     
-    async def process_job(self, job_id: str, trace_id: str = None) -> None:
+    async def process_job(self, job_id: str, trace_id: str = None, owner: str = None) -> None:
         """
         Process a job.
         
         Args:
             job_id: Job ID
             trace_id: Trace ID (optional)
+            owner: Owner of the job (optional)
         """
         # Generate a new trace ID if not provided
         if trace_id is None:
@@ -84,8 +85,8 @@ class JobWorker:
             )
             
             # Get job data
-            job_data_json = await self.repository.get_job_data(job_id)
-            job_type = await self.repository.get_job_type(job_id)
+            job_data_json = await self.repository.get_job_data(job_id, owner)
+            job_type = await self.repository.get_job_type(job_id, owner)
         
             if not job_data_json:
                 raise Exception(f"Job data for job {job_id} not found")
@@ -103,7 +104,7 @@ class JobWorker:
                 processor = self.job_factory.get_processor(job_type)
                 
                 # Process job
-                results = await processor.process(job_data, job_id, trace_id)
+                results = await processor.process(job_data, job_id, trace_id, owner)
                     
             except json.JSONDecodeError:
                 raise Exception(f"Invalid job data for job {job_id}")
@@ -113,10 +114,10 @@ class JobWorker:
             # results["job_data"] = job_data
 
             # Store results
-            await self.repository.store_job_results(job_id, results)
+            await self.repository.store_job_results(job_id, results, owner)
             
             # Update job status
-            await self.repository.update_job_status(job_id, "completed")
+            await self.repository.update_job_status(job_id, "completed", owner)
             
             # Send webhook notification if enabled and URL is available
             await self.notifier.send_notification(
@@ -160,17 +161,19 @@ class JobWorker:
                 for job_key in pending_jobs:
                     # Get job ID
                     job_id = job_key.split(":")[1]
-                    
+                    owner = job_key.split(":")[2] # for qdrant collections
+
                     # Get job status
-                    status = await self.repository.get_job_status(job_key)
+                    status = await self.repository.get_job_status(job_key,owner)
                     
                     # Process pending jobs
                     if status == "pending":
                         # Update job status to processing
-                        await self.repository.update_job_status(job_id, "processing", 60 * 60 * 24)
-                        await self.process_job(job_id, generate_id())
+                        await self.repository.update_job_status(job_id, "processing", owner, 60 * 60 * 24)
+ 
                         # Process job with a new trace ID
-                        #asyncio.create_task(self.process_job(job_id, generate_id()))
+                        await self.process_job(job_id, generate_id(), owner)
+                        # asyncio.create_task(self.process_job(job_id, generate_id(), owner))
                 
                 # Sleep for 1 second
                 try:

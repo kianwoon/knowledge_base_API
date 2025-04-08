@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libmagic1 \
     curl \
+    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -30,8 +31,14 @@ RUN uv pip install --no-cache-dir .
 # Make the script executable
 RUN chmod +x start_services.sh
 
+# Copy supervisord config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create log directories
+RUN mkdir -p /var/log
+
 # Expose port
 EXPOSE 8000
 
-# Run the services using our monitoring script
-CMD ["./start_services.sh"]
+# Run supervisord as the entrypoint
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

@@ -509,7 +509,7 @@ class QdrantJobRepository(JobRepository):
                             job_ids.add(job_id)
                             pending_jobs.append(f"job:{job_id}:{owner}")
                             
-                    logger.info(f"Found {len(results)} pending jobs in collection {collection_name}")
+                    # logger.info(f"Found {len(results)} pending jobs in collection {collection_name}")
                 except Exception as e:
                     logger.error(f"Error querying collection {collection_name}: {str(e)}")
                     continue

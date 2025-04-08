@@ -12,10 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV PATH="$HOME/.local/bin/:$PATH"
+ENV PATH="/root/.local/bin/:$PATH"
 
 # Create a virtual environment
-RUN $HOME/.local/bin/uv venv /opt/venv
+RUN uv venv /opt/venv
 
 # Set environment variables to activate the virtual environment
 ENV VIRTUAL_ENV=/opt/venv
@@ -25,7 +25,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY . . 
 
 # Install Python dependencies with uv from pyproject.toml
-RUN $HOME/.local/bin/uv pip install --no-cache-dir .
+RUN uv pip install --no-cache-dir .
 
 # Expose port
 EXPOSE 8000

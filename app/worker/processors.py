@@ -133,6 +133,7 @@ class EmbeddingProcessor(JobProcessor):
                 "source": job_data.get("source", ""),
                 "source_id": job_id,
                 "filename": job_data.get("filename", ""),
+                "sensitivity": "internal"
             } 
         }
         # Add the extra_data fields to the result

@@ -58,6 +58,6 @@ Thumbs.db
 .obsidian/
 
 # Test
-/test/
+/tests/
 
 .ruff_cache/

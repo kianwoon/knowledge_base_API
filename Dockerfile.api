@@ -27,8 +27,11 @@ COPY . .
 # Install Python dependencies with uv from pyproject.toml
 RUN uv pip install --no-cache-dir .
 
+# Make the script executable
+RUN chmod +x start_services.sh
+
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["sh", "-c", "python run_worker_qdrant.py & python run_worker_redis.py & python run_api.py & wait"]
+# Run the services using our monitoring script
+CMD ["./start_services.sh"]

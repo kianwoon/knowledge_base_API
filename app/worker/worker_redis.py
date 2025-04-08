@@ -20,6 +20,10 @@ async def main():
     Creates and runs JobWorker instances with the default implementations.
     """
     try:
+
+        logger.info("Starting Redis worker...")
+
+
         # Create redis worker with dependencies
         redis_worker = JobWorker(
             repository=RedisJobRepository(),
@@ -27,18 +31,8 @@ async def main():
             job_factory=DefaultJobFactory()
         )
         
-        # Create qdrant monitoring worker
-        qdrant_worker = JobWorker(
-            repository=QdrantJobRepository(),
-            notifier=DefaultNotifier(),
-            job_factory=DefaultJobFactory()
-        )
-        
-        # Run both workers concurrently
-        await asyncio.gather(
-            redis_worker.run() ,
-            qdrant_worker.run()
-        )
+        # Run redis worker
+        await redis_worker.run()
         
     except Exception as e:
         logger.error(f"Unexpected error in worker main function: {str(e)}")

@@ -7,7 +7,7 @@ import asyncio
 import signal
 import sys
 from loguru import logger
-from app.worker import main
+from app.worker.worker_qdrant import main
 
 def handle_sigterm(signum, frame):
     """Handle SIGTERM signal."""

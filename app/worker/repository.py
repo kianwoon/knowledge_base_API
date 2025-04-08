@@ -424,7 +424,7 @@ class QdrantJobRepository(JobRepository):
             
             # We need to search across all collections for this job_id
             collections = client.get_collections().collections
-            collection_names = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
+            collection_names = [collection.name for collection in collections if self.source_collection_name in collection.name]
             
             for collection_name in collection_names:
                 # Ensure collection exists
@@ -477,7 +477,7 @@ class QdrantJobRepository(JobRepository):
             
             # Get all collections that match the pattern
             collections = client.get_collections().collections
-            email_collections = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
+            email_collections = [collection.name for collection in collections if self.source_collection_name in collection.name]
             
          
             pending_jobs = []
@@ -741,7 +741,7 @@ class QdrantJobRepository(JobRepository):
             
             # We need to search across all collections for this job_id
             collections = client.get_collections().collections
-            collection_names = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
+            collection_names = [collection.name for collection in collections if self.source_collection_name in collection.name]
             
             emails = []
             
@@ -790,7 +790,7 @@ class QdrantJobRepository(JobRepository):
             
             # We need to search across all collections for this job_id
             collections = client.get_collections().collections
-            collection_names = [collection.name for collection in collections if "_email_knowledge_base" in collection.name]
+            collection_names = [collection.name for collection in collections if self.source_collection_name in collection.name]
             
             for collection_name in collection_names:
                 # Ensure collection exists

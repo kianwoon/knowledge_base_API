@@ -146,7 +146,8 @@ class EmbeddingProcessor(JobProcessor):
                 "sender": job_data.get("sender", ""),
                 "source": job_data.get("source", ""),
                 "source_id": job_id,
-                "filename": job_data.get("filename", "")
+                "filename": job_data.get("filename", ""),
+                "tags": job_data.get("tags", []),
             } 
         }
         # Add the extra_data fields to the result

@@ -3,8 +3,7 @@
 Job processor implementations for the Worker module.
 """
 
-import base64
-from typing import Dict, Any, List
+from typing import Dict, Any
 from loguru import logger
 
 from app.core.const import JobType
@@ -71,7 +70,7 @@ class EmbeddingProcessor(JobProcessor):
     
     async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str, owner: str = None) -> Dict[str, Any]:
         """
-        Process a text embedding job.
+        Process a text embedding job with resource limits.
         
         Args:
             job_data: Job data containing text to embed
@@ -83,7 +82,22 @@ class EmbeddingProcessor(JobProcessor):
         """
         # Get email body HTML and convert to markdown for better processing
         mail_body_html = job_data.get("raw_text", "")
+        
+        # Add size checks and limits
+        MAX_TEXT_SIZE = 500000  # Limit text processing to 500K chars
+        if len(mail_body_html) > MAX_TEXT_SIZE:
+            logger.warning(
+                f"Email text too large ({len(mail_body_html)} chars), truncating to {MAX_TEXT_SIZE} chars",
+                extra={"job_id": job_id, "trace_id": trace_id}
+            )
+            mail_body_html = mail_body_html[:MAX_TEXT_SIZE]
+        
         mail_body_md = html_to_markdown(mail_body_html)
+
+        # # Limit the size of the input to prevent CPU-intensive processing
+        # max_input_size = 10000  # Example limit in characters
+        # if len(mail_body_md) > max_input_size:
+        #     raise ValueError(f"Input size exceeds the maximum allowed limit of {max_input_size} characters.")
 
         results = []
 
@@ -126,14 +140,13 @@ class EmbeddingProcessor(JobProcessor):
             "extra_data": {
                 "owner": job_data.get("owner", ""),
                 "type": job_data.get("type", ""),
-                "sensitivity": job_data.get("sensitivity", ""),
+                "sensitivity": job_data.get("sensitivity", "internal"),
                 "subject": job_data.get("subject", ""),
                 "date": job_data.get("date", ""),
                 "sender": job_data.get("sender", ""),
                 "source": job_data.get("source", ""),
                 "source_id": job_id,
-                "filename": job_data.get("filename", ""),
-                "sensitivity": "internal"
+                "filename": job_data.get("filename", "")
             } 
         }
         # Add the extra_data fields to the result

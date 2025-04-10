@@ -10,7 +10,7 @@ from loguru import logger
 from app.core.config import config
 from app.core.snowflake import generate_id
 from app.worker.interfaces import JobRepository, Notifier, JobFactory
-from app.worker.repository import RedisJobRepository
+from app.worker.repository_redis import RedisJobRepository
 from app.worker.notifier import DefaultNotifier
 from app.worker.processors import DefaultJobFactory
 

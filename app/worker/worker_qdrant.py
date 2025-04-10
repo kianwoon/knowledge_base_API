@@ -10,8 +10,8 @@ import asyncio
 from loguru import logger
 
 from app.worker.job_worker import JobWorker
-from app.worker.repository import RedisJobRepository,QdrantJobRepository
-from app.worker.notifier import DefaultWebhookNotifier,DefaultNotifier
+from app.worker.repository_qdrant import QdrantJobRepository
+from app.worker.notifier import DefaultNotifier
 from app.worker.processors import DefaultJobFactory
 
 async def main():

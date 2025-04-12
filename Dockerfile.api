@@ -16,21 +16,18 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin/:$PATH"
 
 # Create a virtual environment
-RUN uv venv /opt/venv
+# RUN uv venv /opt/venv
 
 # Set environment variables to activate the virtual environment
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# ENV VIRTUAL_ENV=/opt/venv
+# ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY . . 
 
 # Install Python dependencies with uv from pyproject.toml
-RUN uv pip install --no-cache-dir .
-
-# Make the script executable
-RUN chmod +x start_services.sh
-
+RUN pip install --no-cache-dir .
+ 
 # Copy supervisord config
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 

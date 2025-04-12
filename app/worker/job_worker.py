@@ -192,7 +192,40 @@ class JobWorker:
                 except asyncio.CancelledError:
                     logger.info("Polling task cancelled during error recovery, shutting down gracefully...")
                     break
-    
+
+    async def poll_for_job(self) -> None:
+        """
+        Poll for pending jobs and process them.
+        """
+        try:
+            # Ensure Redis connection is active
+            await self.repository.ping()                 
+
+            # Get pending jobs
+            pending_jobs = await self.repository.get_pending_jobs()
+            
+            for job_key in pending_jobs:
+                # Get job ID
+                job_id = job_key.split(":")[1]
+                owner = job_key.split(":")[2] # for qdrant collections
+
+                # Get job status
+                status = await self.repository.get_job_status(job_key,owner)
+                
+                # Process pending jobs
+                if status == "pending":
+                    # Update job status to processing
+                    await self.repository.update_job_status(job_id, "processing", owner, 60 * 60 * 24)
+
+                    # Process job with a new trace ID
+                    await self.process_job(job_id, generate_id(), owner)
+                    # asyncio.create_task(self.process_job(job_id, generate_id(), owner))
+            
+        except Exception as e:
+            logger.error(f"Error polling for jobs: {str(e)}, sleeping for 5 seconds")
+            await asyncio.sleep(5)  # Reduced sleep time for faster recovery
+
+
     async def run(self) -> None:
         """
         Run the worker.

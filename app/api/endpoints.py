@@ -9,13 +9,16 @@ from datetime import datetime
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, Request
 from starlette.status import HTTP_202_ACCEPTED, HTTP_404_NOT_FOUND
 from loguru import logger
-
-from app.core.const import JobType
+ 
 from app.models.email import EmailSchema, JobResponse, StatusResponse, SubjectAnalysisRequest
 from app.core.auth import requires_permission
 from app.core.redis import redis_client
 from app.core.snowflake import generate_id
 from app.core.config import localize_datetime
+ 
+from celery.result import AsyncResult
+from app.celery.tasks_email import process_subjects
+from app.celery.worker import celery
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -111,46 +114,79 @@ async def get_job_status(
     trace_id = getattr(request.state, "trace_id", generate_id())
     
     # Check if job exists
-    if not await redis_client.exists(f"job:{job_id}:status"):
-        logger.warning(
-            f"Job {job_id} not found, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found"
-        )
+    # if not await redis_client.exists(f"job:{job_id}:status"):
+    #     logger.warning(
+    #         f"Job {job_id} not found, trace_id: {trace_id}",
+    #         extra={"job_id": job_id, "trace_id": trace_id}
+    #     )
+    #     raise HTTPException(
+    #         status_code=HTTP_404_NOT_FOUND,
+    #         detail=f"Job {job_id} not found"
+    #     )
         
-    # Check if job belongs to client
-    client_id = await redis_client.get(f"job:{job_id}:client")
-    if client_id != key_info["client_id"]:
-        logger.warning(
-            f"Job {job_id} does not belong to client {key_info['client_id']}, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found"
-        )
+    # # Check if job belongs to client
+    # client_id = await redis_client.get(f"job:{job_id}:client")
+    # if client_id != key_info["client_id"]:
+    #     logger.warning(
+    #         f"Job {job_id} does not belong to client {key_info['client_id']}, trace_id: {trace_id}",
+    #         extra={"job_id": job_id, "trace_id": trace_id}
+    #     )
+    #     raise HTTPException(
+    #         status_code=HTTP_404_NOT_FOUND,
+    #         detail=f"Job {job_id} not found"
+    #     )
         
-    # Get job status
-    status = await redis_client.get(f"job:{job_id}:status")
     
-    # Build response
-    response = {
-        "job_id": job_id,
-        "status": status
-    }
+
+    # # Get job status
+    # status = await redis_client.get(f"job:{job_id}:status")
     
-    # Add results URL if job is completed
-    if status == "completed":
-        response["results_url"] = f"/api/v1/results/{job_id}"
+    # # Build response
+    # response = {
+    #     "job_id": job_id,
+    #     "status": status
+    # }
+    
+
+    
+    # # Add results URL if job is completed
+    # if status == "completed":
+    #     response["results_url"] = f"/api/v1/results/{job_id}"
         
-    # Add error if job failed
-    if status == "failed":
-        error = await redis_client.get(f"job:{job_id}:error")
-        response["error"] = error
-        
+    # # Add error if job failed
+    # if status == "failed":
+    #     error = await redis_client.get(f"job:{job_id}:error")
+    #     response["error"] = error
+    
+    # celery
+    task_result = AsyncResult(job_id)
+    
+    if not task_result.ready():
+        # Task is still running
+        response = {
+            "job_id": job_id,
+            "status": task_result.status,
+        }
+        # Add progress info if available
+        if task_result.info and isinstance(task_result.info, dict) and 'current' in task_result.info:
+            response["progress"] = task_result.info
+        return response
+    
+    # Task is finished
+    if task_result.successful():
+        return {
+            "job_id": job_id,
+            "status": task_result.status,
+            "results_url": f"/api/v1/results/{job_id}"
+        }
+    else:
+        # Task failed
+        return {
+            "job_id": job_id,
+            "status": task_result.status,
+            "error": str(task_result.result) if task_result.result else "Unknown error"
+        }
+    
     return response
 
 
@@ -176,89 +212,39 @@ async def get_job_results(
     
     # Get trace ID from request state or generate a new one
     trace_id = getattr(request.state, "trace_id", generate_id())
-    
-    # Check if job exists
-    if not await redis_client.exists(f"job:{job_id}:status"):
-        logger.warning(
-            f"Job {job_id} not found, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found"
-        )
         
-    # Check if job belongs to client
-    client_id = await redis_client.get(f"job:{job_id}:client")
-    if client_id != key_info["client_id"]:
-        logger.warning(
-            f"Job {job_id} does not belong to client {key_info['client_id']}, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found"
-        )
-        
-    # Check if job is completed
-    status = await redis_client.get(f"job:{job_id}:status")
-    if status != "completed":
-        logger.warning(
-            f"Results for job {job_id} not available yet (status: {status}), trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND,
-            detail=f"Results for job {job_id} not available yet"
-        )
-    
-    # Get job results
-    results_json = await redis_client.get(f"job:{job_id}:results")
-    if not results_json:
-        logger.error(
-            f"Results for job {job_id} not found despite completed status, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND,
-            detail=f"Results for job {job_id} not found"
-        )
-        
-    # Parse results
-    try:
-        results = json.loads(results_json)
-    except json.JSONDecodeError:
-        logger.error(
-            f"Invalid JSON in results for job {job_id}, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        raise HTTPException(
-            status_code=HTTP_404_NOT_FOUND,
-            detail=f"Invalid results for job {job_id}"
-        )
-        
-    # Get trace ID from request state or generate a new one
-    trace_id = getattr(request.state, "trace_id", generate_id())
-    
-    # Ensure entities is a list of dictionaries
-    if "entities" in results and not isinstance(results["entities"], list):
-        logger.warning(
-            f"Converting entities to proper format for job {job_id}, trace_id: {trace_id}",
-            extra={"job_id": job_id, "trace_id": trace_id}
-        )
-        results["entities"] = []
-        
-    # Check job type
-    job_type = await redis_client.get(f"job:{job_id}:type")
-    job_type = job_type if job_type else "email_analysis"  # Default to email_analysis for backward compatibility
-    
-    # Return results based on job type
-    if job_type == "subject_analysis":
-        return results  # Return subject analysis results directly
-    else:
-        # Return email analysis results in the expected format
-        return {"analysis": results}
+    # # Check if job belongs to client TODO
+    task_result = AsyncResult(job_id)
 
+    # Check if job is completed
+    if not task_result.ready():
+        # Task is still running
+        response = {
+            "job_id": job_id,
+            "status": task_result.status,
+        }
+        # Add progress info if available
+        if task_result.info and isinstance(task_result.info, dict) and 'current' in task_result.info:
+            response["progress"] = task_result.info
+        return response
+
+    # Get job results
+    # Task is finished
+    if task_result.successful():
+        return task_result.result
+    else:  # Fix indentation for the else statement
+        # Task failed
+        response = {
+            "job_id": job_id,
+            "status": task_result.status,
+            "error": str(task_result.result) if task_result.result else "Unknown error"
+        }
+        return response
+        
+    
+ 
+        
+ 
 
 @router.get("/api/v1/health", tags=["System"])
 async def health_check():
@@ -308,10 +294,9 @@ async def detailed_health_check(
     }
 
 
-@router.post("/api/v1/analyze/subjects", status_code=HTTP_202_ACCEPTED, response_model=JobResponse, tags=["Email Analysis"])
+@router.post("/api/v1/analyze/subjects", status_code=HTTP_202_ACCEPTED, response_model=JobResponse, tags=["Email Subject Analysis"])
 async def analyze_subjects(
     request: SubjectAnalysisRequest,
-    background_tasks: BackgroundTasks,
     req: Request,
     api_key: str = Header(..., alias="X-API-Key")
 ):
@@ -320,7 +305,6 @@ async def analyze_subjects(
     
     Args:
         request: Subject analysis request containing list of subjects
-        background_tasks: Background tasks
         req: Request object
         api_key: API key
         
@@ -336,23 +320,38 @@ async def analyze_subjects(
     # Get trace ID from request state or generate a new one
     trace_id = getattr(req.state, "trace_id", generate_id())
     
-    logger.info(f"Subjects received: {request.model_dump_json()}, job {job_id}, trace_id: {trace_id}")
-    
-    # Store job data in Redis
-    await redis_client.store_job_data(
-        job_id=job_id,
-        client_id=key_info["client_id"],
-        data=request.model_dump_json(),
-        job_type=JobType.SUBJECT_ANALYSIS.value
-    )
+    # Convert the request model to a dictionary for serialization
+    job_data = json.dumps(request.model_dump())
+    client_id = key_info["client_id"]
 
-    # Add job to processing queue
-    # background_tasks.add_task(process_subjects, job_id, trace_id)
+    logger.info(f"Subjects received: {job_data}, job {job_id}, trace_id: {trace_id}")
     
-    logger.info(
-        f"Subject analysis job {job_id} submitted for processing, trace_id: {trace_id}",
-        extra={"job_id": job_id, "trace_id": trace_id}
-    )
+    try:
+        # Call the process_subjects task directly using the imported function
+
+        # task_resul1t = add.delay(11, 2)
+        # task_result = process_subjects.delay(33,55)        
+        # task_result = process_subjects.delay(
+        #     job_id,
+        #     job_data,
+        #     client_id1,
+        #     trace_id
+        # )
+        task_result = process_subjects.apply_async(
+            args=(job_id, job_data, client_id, trace_id),
+            task_id=job_id,
+        )
+
+        logger.info(
+            f"Subject analysis job {job_id} submitted with task ID {task_result.id}, trace_id: {trace_id}",
+            extra={"job_id": job_id, "trace_id": trace_id}
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to submit subject analysis job {job_id}: {str(e)}, trace_id: {trace_id}",
+            extra={"job_id": job_id, "trace_id": trace_id}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to submit job: {str(e)}")
     
     # Return job ID
     return {

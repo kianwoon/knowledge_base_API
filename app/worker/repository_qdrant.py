@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Repository implementations for the Worker module."""
 
+from datetime import datetime, timedelta, timezone
 import json
 import time
 from typing import Dict, Any, Optional, List
@@ -199,7 +200,7 @@ class QdrantJobRepository(JobRepository):
             logger.error(f"Error storing job results for job {job_id} in Qdrant: {str(e)}")
             raise
     
-    async def update_job_status(self, job_id: str, status: str, owner: str = None, expiration: int = 60 * 60 * 24 * 7) -> None:
+    async def update_job_status(self, job_id: str, status: str, owner: str = None, expiration: int = 60 * 60) -> None:
         """
         Update job status in Qdrant.
         
@@ -207,14 +208,14 @@ class QdrantJobRepository(JobRepository):
             job_id: Job ID
             status: Job status
             owner: Owner of the job (optional)
-            expiration: Expiration time in seconds (default: 7 days) - not used in Qdrant
+            expiration: Expiration time in seconds (default: 1 hour) - not used in Qdrant
         """
         try:
             # Connect to Qdrant
             client = await qdrant_client.connect_with_retry()
             
             # We need to search across all collections for this job_id
-            collection_name = owner+ self.source_collection_name
+            collection_name = owner + self.source_collection_name
             
             try:
                 # Check if job_id exists in this collection
@@ -223,20 +224,28 @@ class QdrantJobRepository(JobRepository):
                     ids=[job_id],
                     with_vectors=False,
                 )
+
                 if results:
+                    # Create a timezone object for UTC+8
+                    tz_utc8 = timezone(timedelta(hours=8))
+                    # Get current time with UTC+8 timezone
+                    now_utc8 = datetime.now(tz_utc8)
+                    
                     # Update the status field
                     client.set_payload(
                         collection_name=collection_name,
-                        payload={"analysis_status": status},
+                        payload={"analysis_status": status, "lastUpdate": now_utc8.isoformat()},
                         points=[job_id]
                     )
                     logger.info(f"Updated job status for job {job_id} in collection {collection_name} to {status}")
                     return
             except Exception as e:
                 # Skip if collection doesn't exist or other issues
-                raise Exception(f"Collection not found: {str(e)}")
+                logger.error(f"Collection not found: {str(e)}")
+                return
             
             logger.warning(f"Could not find job {job_id} in any collection to update status")
+            return
         except Exception as e:
             logger.error(f"Error updating job status for job {job_id} in Qdrant: {str(e)}")
             raise
@@ -329,7 +338,7 @@ class QdrantJobRepository(JobRepository):
                         },
                         with_payload=["job_id", "analysis_status", "type"],
                         with_vectors=False,
-                        limit=1  # Limit to 5 pending jobs per collection
+                        limit=5  # Limit to 5 pending jobs per collection
                     )
                     
                     # Extract job IDs and format as Redis-compatible keys
@@ -644,3 +653,43 @@ class QdrantJobRepository(JobRepository):
         except Exception as e:
             logger.error(f"Error getting analysis chart for job {job_id} from Qdrant: {str(e)}")
             return None
+
+    async def claim_job(self, job_id: str, owner: str, ttl_seconds: int = 60 * 5) -> bool:
+        """
+        Atomically claim a job for processing.
+        
+        Args:
+            job_id: The ID of the job to claim
+            owner: The owner of the job
+            ttl_seconds: Time-to-live for the claim in seconds (default: 5 minutes)
+            
+        Returns:
+            bool: True if the job was successfully claimed, False otherwise
+        """
+        try:
+            # Create the job key
+            job_key = f"job:{job_id}:{owner}"
+            
+            # Check the current status
+            current_status = await self.redis.get(f"{job_key}:status")
+            
+            # Only claim if the job is in 'pending' status
+            if current_status and current_status.decode() != "pending":
+                return False
+                
+            # Try to atomically claim the job using a Redis transaction
+            tr = self.redis.multi_exec()
+            
+            # Set a lock with expiration
+            tr.set(f"{job_key}:lock", "1", expire=ttl_seconds, exist='SET_IF_NOT_EXISTS')
+            
+            # Execute the transaction
+            results = await tr.execute()
+            
+            # Check if the lock was acquired (first result will be True if successful)
+            return bool(results[0])
+            
+        except Exception as e:
+            from loguru import logger
+            logger.error(f"Error claiming job {job_id} for {owner}: {str(e)}")
+            return False

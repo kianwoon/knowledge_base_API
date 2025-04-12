@@ -31,6 +31,11 @@ class Settings(BaseSettings):
 
     # Environment configuration
     env: str = "development"
+    
+    # Celery configuration
+    celery_broker_url: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+    celery_result_backend: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+    celery_beat_schedule: int = 10
 
     # Logging configuration
     log_level: str = "INFO"
@@ -48,8 +53,6 @@ class Settings(BaseSettings):
     webhook_auth_token: Optional[str] = None
     webhook_url: Optional[str] = None
     
-
-
     # Timezone configuration
     timezone: str = "Asia/Singapore"
     
@@ -138,6 +141,17 @@ def validate_config(config: Dict[str, Any]) -> bool:
     if not isinstance(openai_config.get("fallback_model"), str):
         logger.error("Invalid fallback_model: must be a string")
         return False
+    
+    # Check Celery configuration if present
+    celery_config = config.get("celery", {})
+    if celery_config:
+        if not isinstance(celery_config.get("broker_url"), str):
+            logger.error("Invalid celery.broker_url: must be a string")
+            return False
+            
+        if not isinstance(celery_config.get("result_backend"), str):
+            logger.error("Invalid celery.result_backend: must be a string")
+            return False
         
     return True
 
@@ -166,6 +180,8 @@ def merge_configs(env_config: Settings, file_config: Dict[str, Any]) -> Dict[str
             merged_config.setdefault("openai", {})[key.replace("openai_", "")] = value
         elif key in ["qdrant_host", "qdrant_port", "qdrant_api_key", "qdrant_timeout", "qdrant_collection_name"]:
             merged_config.setdefault("qdrant", {})[key.replace("qdrant_", "")] = value
+        elif key in ["celery_broker_url", "celery_result_backend", "celery_beat_schedule"]:
+            merged_config.setdefault("celery", {})[key.replace("celery_", "")] = value
         elif key == "log_level":
             merged_config.setdefault("logging", {})["level"] = value
         elif key == "encryption_key":
@@ -286,6 +302,11 @@ def load_config() -> Dict[str, Any]:
 
 # Global configuration instance
 config = load_config()
+
+# Function to get the settings
+def get_settings():
+    """Get application settings."""
+    return Settings()
 
 # Get the configured timezone
 def get_timezone():

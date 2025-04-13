@@ -7,10 +7,9 @@ import json
 from typing import Dict, Any
 from loguru import logger
 
-from app.core.const import JobType
 from app.core.snowflake import generate_id
 from app.services.openai_service import OpenAIService
-from app.worker.interfaces import JobProcessor, JobFactory
+from app.worker.interfaces import JobProcessor
 from app.utils.text_utils import html_to_markdown, convert_to_text
 from app.worker.repository_qdrant import QdrantRepository
 
@@ -169,7 +168,7 @@ class EmbeddingMailProcessor(JobProcessor):
                     # Try to extract extension from filename
                     filename = attachment.get("filename", "")
                     if "." in filename:
-                        file_type = filename.split(".")[-1]
+                        file_type = "." + filename.split(".")[-1]
                 
  
 
@@ -404,10 +403,9 @@ class EmbeddingFileProcessor(JobProcessor):
             
         Returns:
             Processing results including the embedding vector(s)
-        """
-        openai_service = OpenAIService() 
+        """ 
 
-        fileSize = job_data.get("size_bytes", "")
+        fileSize = int(job_data.get("size", 0))
 
         binary = job_data.get("content_b64", None)
 
@@ -418,7 +416,7 @@ class EmbeddingFileProcessor(JobProcessor):
 
         # Add size checks and limits
         MAX_FILE_SIZE = 10000000  # Limit text processing to 10M chars
-        if fileSize and len(binary) > MAX_FILE_SIZE:  
+        if fileSize > MAX_FILE_SIZE:  
             raise ValueError(f"Input size exceeds the maximum allowed limit of {MAX_FILE_SIZE} characters.")
 
         # Define extra data fields to include with the embedding
@@ -444,26 +442,32 @@ class EmbeddingFileProcessor(JobProcessor):
       
         # Get file type from mimetype or filename if available
         file_type = job_data.get("mimetype", "")
-        if not file_type and "file_name" in job_data:
+        filename = job_data.get("file_name", "")
+        
+        if not file_type and filename:
             # Try to extract extension from filename
-            filename = job_data.get("file_name", "")
+            
             if "." in filename:
-                file_type = filename.split(".")[-1]
+                file_type = "." + filename.split(".")[-1]
         
         # Extract text from supported file types
         if file_type and binary:
             # Decode base64 content
             try:
                 # Convert base64 content to text
-                text_file = convert_to_text(binary, filename)
-                
+                text_file = convert_to_text(binary, file_type)
+
+                fileSize = len(text_file)
+                if fileSize > MAX_FILE_SIZE:  
+                    raise ValueError(f"Input {filename} size exceeds the maximum allowed limit of {MAX_FILE_SIZE} characters.")
+        
                 # Only process if we have text content
                 if text_file:
                     logger.info(
-                        f"Processing attachment: {job_data.get('file_name', 'unnamed')}, size: {len(text_file)} chars",
+                        f"Processing attachment: {filename}, size: {len(text_file)} chars",
                         extra={"job_id": job_id, "trace_id": trace_id}
                     )
-                    
+                    openai_service = OpenAIService() 
                     # Generate embedding for attachment
                     embedding_results = await openai_service.embedding_text(text_file)
 
@@ -474,35 +478,13 @@ class EmbeddingFileProcessor(JobProcessor):
                     results.append(embedding_results)
                     
                     logger.info(
-                        f"Completed embedding for attachment: {job_data.get('filename', 'unnamed')}",
+                        f"Completed embedding for attachment: {filename}",
                         extra={"job_id": job_id, "trace_id": trace_id}
                     )
             except Exception as e:
                 logger.error(
-                    f"Error processing attachment {job_data.get('filename', 'unnamed')}: {str(e)}",
+                    f"Error processing attachment {filename}: {str(e)}",
                     extra={"job_id": job_id, "trace_id": trace_id}
                 )
 
         return results
-
-
-class DefaultJobFactory(JobFactory):
-    """Default implementation of the JobFactory interface."""
-    
-    def get_processor(self, job_type: str) -> JobProcessor:
-        """
-        Get job processor for the given job type.
-        
-        Args:
-            job_type: Job type
-            
-        Returns:
-            Job processor
-        """
-        if job_type == JobType.SUBJECT_ANALYSIS.value:
-            return SubjectAnalysisProcessor()
-        elif job_type == JobType.EMBEDDING.value:
-            return EmbeddingMailProcessor()
-        else:
-            # Default to email analysis
-            return EmailAnalysisProcessor()

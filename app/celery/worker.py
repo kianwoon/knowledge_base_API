@@ -50,7 +50,13 @@ BEAT_SCHEDULE = {
         'task': 'sharepoint_embedding.get_pending_jobs',
         'schedule': BEAT_SCHEDULE_INTERVAL,  # Default every 10 seconds
         'args': (),
-    } 
+    },
+    'check-pending-aws-s3-jobs': {
+        'task': 'aws_s3_embedding.get_pending_jobs',
+        'schedule': BEAT_SCHEDULE_INTERVAL,  # Default every 10 seconds
+        'args': (),
+    }
+
 }
 
 # BEAT_SCHEDULE = {
@@ -72,7 +78,7 @@ celery = Celery(
     'celery_analyzer_api',
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
-    include=['app.celery.tasks_email', 'app.celery.tasks_embedding_sharepoint', 'app.celery.tasks_embedding_mail', 'app.celery'],
+    include=['app.celery.tasks_email', 'app.celery.tasks_embedding_sharepoint', 'app.celery.tasks_embedding_mail', 'app.celery.tasks_embedding_aws_s3', 'app.celery'],
 )
 
 # Override the default task ID generator

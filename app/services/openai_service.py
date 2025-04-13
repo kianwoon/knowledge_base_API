@@ -49,10 +49,10 @@ class OpenAIKeyManager(KeyManagerInterface):
         try:
             #return self.primary_key
             # Check if primary key is rate limited
-            primary_limited = await self.cache.get("openai_limited:primary")
+            # primary_limited = await self.cache.get("openai_limited:primary")
             
-            if not primary_limited and self.primary_key:
-                return self.primary_key
+            # if not primary_limited and self.primary_key:
+            return self.primary_key
                 
             # Try backup keys
             for i, key in enumerate(self.backup_keys):
@@ -133,6 +133,7 @@ class OpenAICostTracker(CostTrackerInterface):
             tokens: Number of tokens
         """
         try:
+            return
             # Calculate cost
             cost = self.calculate_cost(model, tokens)
             
@@ -245,7 +246,7 @@ class OpenAIService(AIServiceInterface):
         self.cost_tracker = cost_tracker or OpenAICostTracker()
         self.text_chunker = TextChunker()
         
-    async def embeding_text(self, text: str) -> Dict[str, Any]:
+    async def embedding_text(self, text: str) -> Dict[str, Any]:
         """Get embedding for text using OpenAI API.
         
         Args:
@@ -258,9 +259,9 @@ class OpenAIService(AIServiceInterface):
         
         try:
             # Check cost limit
-            if not await self.cost_tracker.check_limit():
-                logger.warning("OpenAI API monthly cost limit reached")
-                raise Exception("OpenAI API monthly cost limit reached")
+            # if not await self.cost_tracker.check_limit():
+            #     logger.warning("OpenAI API monthly cost limit reached")
+            #     raise Exception("OpenAI API monthly cost limit reached")
                 
             # Get API key
             api_key = await self.key_manager.get_api_key()
@@ -354,7 +355,7 @@ class OpenAIService(AIServiceInterface):
                 await self.key_manager.mark_key_limited(api_key)
                 
                 # Try again with a different key
-                return await self.embeding_text(text)
+                return await self.embedding_text(text)
             else:
                 # For other types of errors
                 logger.error(f"Error generating embedding: {str(e)}")

@@ -32,12 +32,27 @@ logger.info(f"Celery result backend: {mask_password_in_url(CELERY_RESULT_BACKEND
 # Fallback to hardcoded schedule for testing if needed
 
 BEAT_SCHEDULE = {
-    'check-pending-jobs': {
-        'task': 'task_embedding.get_pending_jobs',
+    'check-pending-mail-jobs': {
+        'task': 'mail_embedding.get_pending_jobs',
+        'schedule': BEAT_SCHEDULE_INTERVAL,  # Default every 10 seconds
+        'args': (),
+    } ,
+        'check-pending-sharepoint-jobs': {
+        'task': 'sharepoint_embedding.get_pending_jobs',
         'schedule': BEAT_SCHEDULE_INTERVAL,  # Default every 10 seconds
         'args': (),
     } 
 }
+
+# BEAT_SCHEDULE = {
+#         'check-pending-sharepoint-jobs': {
+#         'task': 'sharepoint_embedding.get_pending_jobs',
+#         'schedule': 15,  # Default every 10 seconds
+#         'args': (),
+#     } 
+# }
+
+
 # BEAT_SCHEDULE={}
 # Task ID generator function
 def generate_task_id():
@@ -48,7 +63,7 @@ celery = Celery(
     'celery_analyzer_api',
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
-    include=['app.celery.tasks_email', 'app.celery.tasks_embedding', 'app.celery'],
+    include=['app.celery.tasks_email', 'app.celery.tasks_embedding_sharepoint', 'app.celery.tasks_embedding_mail', 'app.celery'],
 )
 
 # Override the default task ID generator

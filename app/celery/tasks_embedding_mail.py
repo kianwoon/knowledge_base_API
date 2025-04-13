@@ -5,26 +5,29 @@ from celery import shared_task
 from loguru import logger
 
 from app.core.snowflake import generate_id
-from app.worker.processors import EmbeddingProcessor
-from app.worker.repository_qdrant import QdrantJobRepository
+from app.worker.processors import EmbeddingMailProcessor
+from app.worker.repository_qdrant_mail import QdrantMailJobRepository
 
 
-@shared_task(name="task_embedding.get_pending_jobs")
+@shared_task(name="mail_embedding.get_pending_jobs")
 def get_pending_jobs():
     """
     Process embedding task.
     
     Args:
-        data: The data containing information for embedding processing.
+        self: The Celery task instance (automatically provided by Celery)
     """
     logger.info("Check pending jobs.")
     
     async def process_pending_jobs():
-        repository = QdrantJobRepository()
+        repository = QdrantMailJobRepository()
+        # pending_jobs = await repository.scheduled_task()
+         
+
         pending_jobs = await repository.get_pending_jobs()
-        
+                
         if not pending_jobs:
-            logger.info("No pending jobs found")
+            logger.info(f"No pending jobs found for processing.")
             return []
         
         logger.info(f"Found {len(pending_jobs)} pending jobs")
@@ -39,14 +42,6 @@ def get_pending_jobs():
                     logger.error(err_msg)
                     await repository.update_job_status(job_id, err_msg, owner, None)
                     continue
-                
-                # # Add atomic job claiming to prevent race conditions
-                # claimed = await repository.claim_job(job_id, owner)
-                # if not claimed:
-                #     logger.info(f"Job {job_id} was already claimed by another worker, skipping")
-                #     continue
-                
-                # Now the job is exclusively claimed by this worker
                 await repository.update_job_status(job_id, "scheduled", owner, None)
                 logger.info(f"Processing Job ID: {job_id}, Owner: {owner}")
                 
@@ -60,17 +55,18 @@ def get_pending_jobs():
             except Exception as e:
                 logger.error(f"Error scheduling task for job {job_data}: {str(e)}")
                 if job_id and owner:
-                    await repository.update_job_status(job_id, f"error: {str(e)}", owner, None)
- 
-        return pending_jobs
+                    await repository.update_job_status(job_id, f"error: {str(e)}", owner)
 
-    # Use a single asyncio.run call for all async operations
+
+
+        return pending_jobs
+ 
     result = asyncio.run(process_pending_jobs())
-    # logger.info("Finished executing get_pending_jobs task.")
+    
     return result
 
 
-@shared_task(name="task_embedding.task_processing")
+@shared_task(name="mail_embedding.task_processing")
 def process_embedding(job_id: str, owner: str):
     """
     Process embedding task.
@@ -83,8 +79,8 @@ def process_embedding(job_id: str, owner: str):
     async def process_job():
         try:
             trace_id = generate_id()
-            repository = QdrantJobRepository()
-            processor = EmbeddingProcessor()
+            repository = QdrantMailJobRepository()
+            processor = EmbeddingMailProcessor()
             
             # Get job data and update status
             job_data_json = await repository.get_job_data(job_id, owner)

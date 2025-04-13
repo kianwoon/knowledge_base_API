@@ -6,7 +6,7 @@ import json
 import time
 from typing import Dict, Any, Optional, List
 from loguru import logger
-
+ 
 from app.core.const import JobType
 from app.core.qdrant import qdrant_client
 from app.worker.interfaces import JobRepository
@@ -14,7 +14,7 @@ from app.models.qdrant_mail import QdrantEmailEntry, QdrantQueryCriteria, Qdrant
 from app.models.email import EmailSchema, EmailAnalysis
 
 
-class QdrantJobRepository(JobRepository):
+class QdrantMailJobRepository(JobRepository):
     """Qdrant implementation of the JobRepository interface."""
     
     _collection_cache = {}  # Simple cache for collection existence
@@ -303,7 +303,62 @@ class QdrantJobRepository(JobRepository):
         except Exception as e:
             logger.error(f"Error storing job error for job {job_id} in Qdrant: {str(e)}")
             raise
-    
+
+
+    async def get_sharepoint_pending_jobs(self) -> List[str]:
+        """
+        Get pending jobs from Qdrant across all user collections.
+        
+        Returns:
+            List of pending job keys in the format "job:{job_id}:status"
+        """
+        try:
+            # Connect to Qdrant
+            client = await qdrant_client.connect_with_retry()
+            
+            # Get all collections that match the pattern
+            collections = client.get_collections().collections
+            email_collections = [collection.name for collection in collections if collection.name.endswith(self.source_collection_name)]
+            
+            pending_jobs = []
+            job_ids = set()  # Use a set to deduplicate job IDs
+            
+            # Search each collection for pending jobs
+            for collection_name in email_collections:
+                try:
+                    owner = collection_name.replace(self.source_collection_name, "")
+
+                    # Query for entries with analysis_status="pending"
+                    results, next_page_offset = client.scroll(
+                        collection_name=collection_name,
+                        scroll_filter={
+                            "must": [
+                                {"key": "analysis_status", "match": {"value": "pending"}},
+                                {"key": "source", "match": {"value": "sharepoint"}}
+                            ]
+                        },
+                        with_payload=["job_id", "analysis_status", "type"],
+                        with_vectors=False,
+                        limit=5  # Limit to 5 pending jobs per collection
+                    )
+                    
+                    # Extract job IDs and format as Redis-compatible keys
+                    for point in results:
+                        job_id = point.id
+                        if job_id and job_id not in job_ids:
+                            job_ids.add(job_id)
+                            pending_jobs.append(f"job:{job_id}:{owner}")
+                            
+                    # logger.info(f"Found {len(results)} pending jobs in collection {collection_name}")
+                except Exception as e:
+                    logger.error(f"Error querying collection {collection_name}: {str(e)}")
+                    continue
+            
+            return pending_jobs
+        except Exception as e:
+            logger.error(f"Error getting pending jobs from Qdrant: {str(e)}")
+            return [] 
+
     async def get_pending_jobs(self) -> List[str]:
         """
         Get pending jobs from Qdrant across all user collections.

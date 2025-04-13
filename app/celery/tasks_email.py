@@ -6,22 +6,10 @@ from celery import shared_task
 
 from app.worker.notifier import DefaultWebhookNotifier 
 from app.worker.processors import SubjectAnalysisProcessor
-from loguru import logger
-from app.services.openai_service import openai_service
+from loguru import logger 
 
-
-@shared_task(name="app.tasks.add")
-def add(x, y):
-    """
-    A simple task that adds two numbers together.
-    This demonstrates a basic Celery task.
-    """
-    # Simulate a time-consuming task
-    time.sleep(2)
-    return x + y
-
-@shared_task(name="task_email.process_subjects", bind=True)
-def process_subjects(self, job_id: str, job_data: str, client_id: str, trace_id: str = None):
+@shared_task(name="task_email.process_subjects")
+def process_subjects(job_id: str, job_data: str, client_id: str, trace_id: str = None):
     """
     Process email subjects analysis task.
     

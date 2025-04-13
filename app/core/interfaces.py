@@ -122,3 +122,9 @@ class AIServiceInterface(ABC):
                               job_id: str = None, trace_id: str = None) -> Dict[str, Any]:
         """Analyze a list of email subject lines."""
         pass
+    
+    @abstractmethod
+    def embedding_text(self, text: str) -> Dict[str, Any]:
+        """Generate embeddings for a given text."""
+        pass
+    

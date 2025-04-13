@@ -10,7 +10,7 @@ import asyncio
 from loguru import logger
 
 from app.worker.job_worker import JobWorker
-from app.worker.repository_qdrant import QdrantJobRepository
+from app.worker.repository_qdrant_mail import QdrantMailJobRepository
 from app.worker.notifier import DefaultNotifier
 from app.worker.processors import DefaultJobFactory
 
@@ -25,7 +25,7 @@ async def main():
  
         # Create qdrant monitoring worker
         qdrant_worker = JobWorker(
-            repository=QdrantJobRepository(),
+            repository=QdrantMailJobRepository(),
             notifier=DefaultNotifier(),
             job_factory=DefaultJobFactory()
         )

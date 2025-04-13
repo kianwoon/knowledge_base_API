@@ -10,14 +10,14 @@ from loguru import logger
 from app.core.const import JobType
 from app.core.qdrant import qdrant_client
 from app.worker.interfaces import JobRepository
-from app.models.qdrant_mail import QdrantEmailEntry, QdrantQueryCriteria, QdrantQueryCriteriaEntry, QdrantAnalysisChartEntry
-from app.models.email import EmailSchema, EmailAnalysis
+from app.models.qdrant_mail import QdrantQueryCriteria, QdrantQueryCriteriaEntry, QdrantAnalysisChartEntry
+from app.models.email import EmailAnalysis
 from app.models.job import Job
 from qdrant_client.conversions import common_types as types
 
 
 
-class QdrantSharepointRepository(JobRepository):
+class QdrantRepository(JobRepository):
     """Qdrant implementation of the JobRepository interface."""
     
     _collection_cache = {}  # Simple cache for collection existence
@@ -25,7 +25,7 @@ class QdrantSharepointRepository(JobRepository):
 
     def __init__(self, source_collection_name="_sharepoint_knowledge", target_collection_name="_knowledge_base", vector_size=1536):
         """
-        Initialize QdrantMailSharepointRepository.
+        Initialize QdrantRepository.
         
         Args:
             source_collection_name: Default Qdrant source collection name (default: __sharepoint_knowledge)

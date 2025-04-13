@@ -52,13 +52,11 @@ temp/
 
 # OS specific
 .DS_Store
-Thumbs.db
+*.db
 
 # Notebook
 .obsidian/
 
 # Test
 /tests/
-
 .ruff_cache/
-celerybeat-schedule.db

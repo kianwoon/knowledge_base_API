@@ -1,3 +1,4 @@
+import asyncio
 import os
 from celery import Celery
 from loguru import logger
@@ -28,7 +29,15 @@ def mask_password_in_url(url):
 logger.info(f"Celery broker URL: {mask_password_in_url(CELERY_BROKER_URL)}")
 logger.info(f"Celery result backend: {mask_password_in_url(CELERY_RESULT_BACKEND)}")
 
-
+def get_or_create_event_loop():
+    """Get the current event loop or create a new one if needed."""
+    try:
+        return asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+    
 # Fallback to hardcoded schedule for testing if needed
 
 BEAT_SCHEDULE = {
@@ -68,6 +77,18 @@ celery = Celery(
 
 # Override the default task ID generator
 celery.gen_task_id = generate_task_id
+
+
+# celery.conf.task_routes = {
+#     'mail_embedding.get_pending_jobs': {'queue': 'pending_jobs'},
+#     'mail_embedding.task_processing': {'queue': 'mail_embedding'},
+
+#     'sharepoint_embedding.get_pending_jobs': {'queue': 'pending_jobs'},
+#     'sharepoint_embedding.task_processing': {'queue': 'sharepoint_embedding'},
+
+#     'tasks_email.process_subjects': {'queue': 'mail_subject'}, 
+# }
+
 
 # Configure Celery
 celery.conf.update(

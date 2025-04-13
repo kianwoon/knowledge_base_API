@@ -340,6 +340,7 @@ async def analyze_subjects(
         task_result = process_subjects.apply_async(
             args=(job_id, job_data, client_id, trace_id),
             task_id=job_id,
+            priority=3 # Set a higher priority for this task
         )
 
         logger.info(

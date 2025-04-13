@@ -3,13 +3,18 @@
 Job processor implementations for the Worker module.
 """
 
+import json
 from typing import Dict, Any
 from loguru import logger
 
 from app.core.const import JobType
+from app.core.snowflake import generate_id
 from app.services.openai_service import OpenAIService
 from app.worker.interfaces import JobProcessor, JobFactory
 from app.utils.text_utils import html_to_markdown, convert_to_text
+from app.worker.repository_qdrant import QdrantRepository
+
+from app.celery.worker import celery
 
 
 class SubjectAnalysisProcessor(JobProcessor):
@@ -188,11 +193,206 @@ class EmbeddingMailProcessor(JobProcessor):
                         )
     
         return results
+    
+    def __init__(self, source_repository: str = "_email_knowledge", job_type: str = "email", task_name: str = "mail_embedding.task_processing") -> None:
+        """
+        Initialize the processor with a specific source repository.
+        Args:
+            source_repository: The source repository for the processor.
+        """
+        
+        self.repository = QdrantRepository(source_repository)
+        self.job_type = job_type
+        self.task_name = task_name
+        self.source_repository = source_repository
 
+
+    async def do_embedding(self, job_data: str) -> None:
+        """
+        Process embedding task.
+        Args:
+            data: The data containing information for embedding processing.
+        """
+        job_type, job_id, owner = job_data.split(":")
+
+        logger.info(f"Starting do_embedding with job_id: {job_id}, owner: {owner}")
+        trace_id = generate_id() 
+        # Get job data and update status
+        job_data_json = await self.repository.get_job_data(job_id, owner)
+        
+        # Log full job data for debugging
+        logger.info(f"Job data length: {len(job_data_json)}, job_id: {job_id}, owner: {owner}")
+        
+        job_json = json.loads(job_data_json)
+
+        # Process job
+        results = await self.process(job_json, job_id, trace_id, owner)
+
+        # Store results
+        await self.repository.store_job_results(job_id, results, owner)
+        
+        # Update job status
+        await self.repository.update_job_status(job_id, "completed", owner)
+        
+        logger.info(f"Completed do_embedding task for job {job_data}")
+    
+
+    async def schedule_task(self) -> None:
+        pending_jobs = await self.get_pending_jobs()
+        if not pending_jobs:
+            logger.info(f"No pending jobs{ self.source_repository } found for processing.")
+            return []
+        
+        logger.info(f"Found {len(pending_jobs)} pending jobs")
+        for job_data in pending_jobs:
+            logger.info(f"Processing job: {job_data}")  
+            try:
+                
+                job_type, job_id, owner = job_data.split(":")
+
+                await self.repository.update_job_status(job_id, "scheduled", owner)
+                logger.info(f"Processing Job ID: {job_id}, Owner: {owner}")
+                
+                # Schedule the task without awaiting it (use synchronous Celery API)
+                
+                # task = process_embedding.apply_async(args=[job_data], task_id=job_id)
+
+                task = celery.send_task(self.task_name, kwargs={"job_data": job_data}, task_id=job_id)
+
+                logger.info(f"Scheduled task with ID: {task.id} for job {job_id}")
+
+                await self.repository.update_job_status(job_id, "processing", owner)
+
+            except Exception as e:
+                logger.error(f"Error scheduling task for job {job_data}: {str(e)}")
+                if job_id and owner:
+                    await self.repository.update_job_status(job_id, f"error: {str(e)}", owner)
+        return pending_jobs  
+
+    async def get_pending_jobs(self) -> Dict[str, Any]:
+
+        # Use the instance repository instead of creating a new one
+        
+        filter = {
+                        "must": [
+                            {"key": "analysis_status", "match": {"value": "pending"}},
+                            {"key": "source", "match": {"value": "email"}}
+                        ]
+                }
+        
+        
+        payload = ["job_id", "analysis_status", "type"]
+
+        pending_jobs = await self.repository.get_pending_jobs(self.job_type, filter, payload)                 
+  
+        if not pending_jobs:
+            logger.info("No pending jobs found for processing.")
+            return []
+        
+        logger.info(f"Found {len(pending_jobs)} pending jobs")
+        return pending_jobs
+    
 
 class EmbeddingFileProcessor(JobProcessor):
     """Processor for SharePoint text embedding jobs."""
+
+    def __init__(self, source_repository: str = "_sharepoint_knowledge", job_type: str = "sharepoint", task_name: str = "sharepoint_embedding.task_processing") -> None:
+        """
+        Initialize the processor with a specific source repository.
+        Args:
+            source_repository: The source repository for the processor.
+        """
+        
+        self.repository = QdrantRepository(source_repository)
+        self.job_type = job_type
+        self.task_name = task_name
+        self.source_repository = source_repository
+
+
+    async def do_embedding(self, job_data: str) -> None:
+        """
+        Process embedding task.
+        Args:
+            data: The data containing information for embedding processing.
+        """
+        job_type, job_id, owner = job_data.split(":")
+
+        logger.info(f"Starting do_embedding with job_id: {job_id}, owner: {owner}")
+        trace_id = generate_id() 
+        # Get job data and update status
+        job_data_json = await self.repository.get_job_data(job_id, owner)
+        
+        # Log full job data for debugging
+        logger.info(f"Job data length: {len(job_data_json)}, job_id: {job_id}, owner: {owner}")
+        
+        job_json = json.loads(job_data_json)
+
+        # Process job
+        results = await self.process(job_json, job_id, trace_id, owner)
+
+        # Store results
+        await self.repository.store_job_results(job_id, results, owner)
+        
+        # Update job status
+        await self.repository.update_job_status(job_id, "completed", owner)
+        
+        logger.info(f"Completed do_embedding task for job {job_data}")
     
+
+    async def schedule_task(self) -> None:
+        pending_jobs = await self.get_pending_jobs()
+        if not pending_jobs:
+            logger.info(f"No pending jobs{ self.source_repository } found for processing.")
+            return []
+        
+        logger.info(f"Found {len(pending_jobs)} pending jobs")
+        for job_data in pending_jobs:
+            logger.info(f"Processing job: {job_data}")  
+            try:
+                
+                job_type, job_id, owner = job_data.split(":")
+
+                await self.repository.update_job_status(job_id, "scheduled", owner)
+                logger.info(f"Processing Job ID: {job_id}, Owner: {owner}")
+                
+                # Schedule the task without awaiting it (use synchronous Celery API)
+                
+                # task = process_embedding.apply_async(args=[job_data], task_id=job_id)
+
+                task = celery.send_task(self.task_name, kwargs={"job_data": job_data}, task_id=job_id)
+
+                logger.info(f"Scheduled task with ID: {task.id} for job {job_id}")
+
+                await self.repository.update_job_status(job_id, "processing", owner)
+
+            except Exception as e:
+                logger.error(f"Error scheduling task for job {job_data}: {str(e)}")
+                if job_id and owner:
+                    await self.repository.update_job_status(job_id, f"error: {str(e)}", owner)
+        return pending_jobs  
+
+    async def get_pending_jobs(self) -> Dict[str, Any]:
+
+        # Use the instance repository instead of creating a new one
+        
+        filter = {
+                    "must": [
+                            {"key": "analysis_status", "match": {"value": "pending"}}
+                            ]
+                }
+        
+        payload = ["id", "analysis_status", "type"]
+
+        pending_jobs = await self.repository.get_pending_jobs(self.job_type, filter, payload)                 
+  
+        if not pending_jobs:
+            logger.info("No pending jobs found for processing.")
+            return []
+        
+        logger.info(f"Found {len(pending_jobs)} pending jobs")
+        return pending_jobs
+    
+
     async def process(self, job_data: Dict[str, Any], job_id: str, trace_id: str, owner: str = None) -> Dict[str, Any]:
         """
         Process a text embedding job with resource limits.

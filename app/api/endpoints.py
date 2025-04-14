@@ -7,18 +7,17 @@ import json
 import time
 from datetime import datetime
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, Request
-from starlette.status import HTTP_202_ACCEPTED, HTTP_404_NOT_FOUND
+from starlette.status import HTTP_202_ACCEPTED
 from loguru import logger
  
 from app.models.email import EmailSchema, JobResponse, StatusResponse, SubjectAnalysisRequest
 from app.core.auth import requires_permission
-from app.core.redis import redis_client
+from app.core.hybrid_cache import hybrid_cache
 from app.core.snowflake import generate_id
 from app.core.config import localize_datetime
  
 from celery.result import AsyncResult
 from app.celery.tasks_email import process_subjects
-from app.celery.worker import celery
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -64,7 +63,7 @@ async def analyze_email(
     job_id = generate_id()
     
     # Store job data in Redis
-    await redis_client.store_job_data(
+    await hybrid_cache.store_job_data(
         job_id=job_id,
         client_id=key_info["client_id"],
         data=email.model_dump_json(),
@@ -108,7 +107,7 @@ async def get_job_status(
         Status response
     """
     # Validate API key and check permissions
-    key_info = await requires_permission("status", api_key)
+    await requires_permission("status", api_key)
     
     # Get trace ID from request state or generate a new one
     trace_id = getattr(request.state, "trace_id", generate_id())
@@ -275,7 +274,7 @@ async def detailed_health_check(
     
     # Check Redis connection
     try:
-        await redis_client.ping()
+        await hybrid_cache.ping()
         redis_status = "ok"
     except Exception as e:
         redis_status = f"error: {str(e)}"
@@ -340,7 +339,7 @@ async def analyze_subjects(
         task_result = process_subjects.apply_async(
             args=(job_id, job_data, client_id, trace_id),
             task_id=job_id,
-            priority=3 # Set a higher priority for this task
+            priority=9 # Set a higher priority for this task
         )
 
         logger.info(

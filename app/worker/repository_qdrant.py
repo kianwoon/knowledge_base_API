@@ -195,7 +195,7 @@ class QdrantRepository(JobRepository):
                 extra_data = result.get("extra_data", {}) 
                 
                 # Save embeddings using the QdrantClientManager
-                await qdrant_client.save_embeddings(
+            result = await qdrant_client.save_embeddings(
                     job_id=job_id,
                     embeddings=embeddings,
                     collection_name=collection_name,
@@ -323,13 +323,13 @@ class QdrantRepository(JobRepository):
             
             # Get all collections that match the pattern
             collections = client.get_collections().collections
-            email_collections = [collection.name for collection in collections if collection.name.endswith(self.source_collection_name)]
+            source_collections = [collection.name for collection in collections if collection.name.endswith(self.source_collection_name)]
             
             pending_jobs = []
             job_ids = set()  # Use a set to deduplicate job IDs
             
             # Search each collection for pending jobs
-            for collection_name in email_collections:
+            for collection_name in source_collections:
                 try:
                     owner = collection_name.replace(self.source_collection_name, "")
 

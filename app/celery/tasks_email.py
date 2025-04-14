@@ -1,7 +1,5 @@
 import asyncio
 import json
-import time
-from typing import Any, Dict, List
 from celery import shared_task
 
 from app.worker.notifier import DefaultWebhookNotifier 

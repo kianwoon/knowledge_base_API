@@ -30,8 +30,9 @@ async def get_redis_client():
     """
     # This is a placeholder. In a real implementation, you would
     # return an actual Redis client instance.
-    from app.core.redis import redis_client
-    return redis_client
+    # from app.core.redis import redis_client
+    from app.core.hybrid_cache import hybrid_cache
+    return hybrid_cache
 
 
 async def generate_api_key(client_id: str, tier: str) -> str:

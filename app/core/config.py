@@ -33,10 +33,11 @@ class Settings(BaseSettings):
     env: str = "development"
     
     # Celery configuration
-    celery_broker_url: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    celery_result_backend: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/0"
     celery_beat_schedule: int = 10
-
+    celery_beat_schedule_config: dict = {}
+    
     # Logging configuration
     log_level: str = "INFO"
     
@@ -55,6 +56,10 @@ class Settings(BaseSettings):
     
     # Timezone configuration
     timezone: str = "Asia/Singapore"
+    
+    # PostgreSQL configuration
+    database_url: Optional[str] = os.getenv("DATABASE_URL", None)
+    db_echo: bool = os.getenv("DB_ECHO", "false").lower() == "true"
     
     model_config = {
         "env_file": ".env",
@@ -153,6 +158,17 @@ def validate_config(config: Dict[str, Any]) -> bool:
             logger.error("Invalid celery.result_backend: must be a string")
             return False
         
+    # Check PostgreSQL configuration if present
+    postgres_config = config.get("postgres", {})
+    if postgres_config:
+        if not isinstance(postgres_config.get("database_url"), str):
+            logger.error("Invalid postgres.database_url: must be a string")
+            return False
+            
+        if not isinstance(postgres_config.get("echo"), bool):
+            logger.error("Invalid postgres.echo: must be a boolean")
+            return False
+        
     return True
 
 
@@ -180,8 +196,10 @@ def merge_configs(env_config: Settings, file_config: Dict[str, Any]) -> Dict[str
             merged_config.setdefault("openai", {})[key.replace("openai_", "")] = value
         elif key in ["qdrant_host", "qdrant_port", "qdrant_api_key", "qdrant_timeout", "qdrant_collection_name"]:
             merged_config.setdefault("qdrant", {})[key.replace("qdrant_", "")] = value
-        elif key in ["celery_broker_url", "celery_result_backend", "celery_beat_schedule"]:
+        elif key in ["celery_broker_url", "celery_result_backend"]:
             merged_config.setdefault("celery", {})[key.replace("celery_", "")] = value
+        elif key == "celery_beat_schedule_interval":
+            merged_config.setdefault("celery", {})["celery_beat_schedule_interval"] = value
         elif key == "log_level":
             merged_config.setdefault("logging", {})["level"] = value
         elif key == "encryption_key":
@@ -190,7 +208,14 @@ def merge_configs(env_config: Settings, file_config: Dict[str, Any]) -> Dict[str
             merged_config.setdefault("app", {})["timezone"] = value
         elif key == "env":
             merged_config.setdefault("app", {})["env"] = value
-
+        elif key in ["database_url", "db_echo"]:
+            merged_config.setdefault("postgres", {})[key] = value 
+    
+    # IMPORTANT: Load Celery beat schedule configuration from file
+    if "celery" in file_config and "beat_schedule" in file_config["celery"]:
+        env_config.celery_beat_schedule_config = file_config["celery"]["beat_schedule"]
+ 
+        
     # Handle PORT environment variable separately
     if "PORT" in os.environ:
         try:
@@ -224,19 +249,19 @@ def setup_logging(config: Dict[str, Any]) -> None:
 
     # Configure Loguru to display job_id and trace_id in logs 
     logger.add(
-        sys.stderr,
+        sys.stdout,
         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <yellow>job_id={extra[job_id]}</yellow> | <yellow>trace_id={extra[trace_id]}</yellow> | <level>{message}</level>",
         filter=lambda record: "job_id" in record["extra"] and "trace_id" in record["extra"],
         level="INFO"
     )
     logger.add(
-        sys.stderr,
+        sys.stdout,
         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <yellow>trace_id={extra[trace_id]}</yellow> | <level>{message}</level>",
         filter=lambda record: "trace_id" in record["extra"] and "job_id" not in record["extra"],
         level="INFO"
     )
     logger.add(
-        sys.stderr,
+        sys.stdout,
         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>",
         filter=lambda record: "trace_id" not in record["extra"],
         level="INFO"
@@ -303,10 +328,34 @@ def load_config() -> Dict[str, Any]:
 # Global configuration instance
 config = load_config()
 
-# Function to get the settings
+global_settings = None  # Will store the configured settings
+
+# Function to get the settings - REPLACE THIS FUNCTION
 def get_settings():
-    """Get application settings."""
-    return Settings()
+    """Get application settings with values from YAML config."""
+    global global_settings
+    
+    # If we already created and configured the settings object, return it
+    if global_settings is not None:
+        return global_settings
+        
+    # Create a new settings object
+    settings = Settings()
+    
+    # Get the file config that was already loaded
+    file_config = load_yaml_config(settings.config_path)
+    
+    # Apply the beat schedule config
+    if "celery" in file_config and "beat_schedule" in file_config["celery"]:
+        settings.celery_beat_schedule_config = file_config["celery"]["beat_schedule"]
+        logger.info(f"Loaded {len(file_config['celery']['beat_schedule'])} jobs from beat schedule configuration")
+    else:
+        logger.warning("No beat_schedule found in YAML configuration")
+    
+    # Store for future use
+    global_settings = settings
+    
+    return settings 
 
 # Get the configured timezone
 def get_timezone():

@@ -4,15 +4,17 @@ from celery import Celery
 from loguru import logger
 from app.core.config import get_settings
 from app.core.snowflake import generate_id
+import importlib
+import pkgutil
+
 
 # Get configuration settings
 settings = get_settings()
 
 # Define broker URL and result backend from settings or environment variables
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', settings.celery_broker_url)
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', settings.celery_result_backend)
-BEAT_SCHEDULE_INTERVAL = os.getenv('BEAT_SCHEDULE_INTERVAL', settings.celery_beat_schedule)
-
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', settings.celery_result_backend) 
+ 
 # Log the broker URL (without password if present)
 def mask_password_in_url(url):
     if '@' in url and '://' in url:
@@ -38,63 +40,68 @@ def get_or_create_event_loop():
         asyncio.set_event_loop(loop)
         return loop
     
-# Fallback to hardcoded schedule for testing if needed
+# Build beat schedule from configuration
+BEAT_SCHEDULE = {}
+if settings.celery_beat_schedule_config:
+    for job_name, job_config in settings.celery_beat_schedule_config.items():
+        BEAT_SCHEDULE[job_name] = {
+            'task': job_config.get('task'),
+            'schedule': int(job_config.get('schedule', 10)),
+            'args': job_config.get('args', ()),
+        }
+        logger.info(f"Added scheduled job: {job_name}")
+else:
+    logger.warning("No Celery beat schedule found in configuration")
 
-BEAT_SCHEDULE = {
-    'check-pending-mail-jobs': {
-        'task': 'mail_embedding.get_pending_jobs',
-        'schedule': BEAT_SCHEDULE_INTERVAL,  # Default every 10 seconds
-        'args': (),
-    } ,
-        'check-pending-sharepoint-jobs': {
-        'task': 'sharepoint_embedding.get_pending_jobs',
-        'schedule': BEAT_SCHEDULE_INTERVAL,  # Default every 10 seconds
-        'args': (),
-    },
-    'check-pending-aws-s3-jobs': {
-        'task': 'aws_s3_embedding.get_pending_jobs',
-        'schedule': BEAT_SCHEDULE_INTERVAL,  # Default every 10 seconds
-        'args': (),
-    }
-
-}
-
-# BEAT_SCHEDULE = {
-#         'check-pending-sharepoint-jobs': {
-#         'task': 'sharepoint_embedding.get_pending_jobs',
-#         'schedule': 15,  # Default every 10 seconds
-#         'args': (),
-#     } 
-# }
-
-
-# BEAT_SCHEDULE={}
 # Task ID generator function
 def generate_task_id():
     return str(generate_id())
+
+
+
+# # Find all task modules in the app/tasks directory
+# def discover_tasks():
+#     task_modules = []
+#     tasks_package = 'app.tasks'
+    
+#     try:
+#         # Import the tasks package
+#         tasks_pkg = importlib.import_module(tasks_package)
+        
+#         # Get the package path
+#         pkg_path = os.path.dirname(tasks_pkg.__file__)
+        
+#         # Walk through all modules in the package
+#         for _, name, is_pkg in pkgutil.iter_modules([pkg_path]):
+#             # Add the module to the list (excluding subpackages)
+#             if not is_pkg:
+#                 task_modules.append(f"{tasks_package}.{name}")
+#                 logger.info(f"Discovered task module: {tasks_package}.{name}")
+    
+#     except (ImportError, AttributeError) as e:
+#         logger.warning(f"Could not discover task modules: {e}")
+    
+#     return task_modules
+
+# # Get all task modules
+# task_modules = discover_tasks
+
 
 # Initialize Celery app with more robust connection settings
 celery = Celery(
     'celery_analyzer_api',
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
-    include=['app.celery.tasks_email', 'app.celery.tasks_embedding_sharepoint', 'app.celery.tasks_embedding_mail', 'app.celery.tasks_embedding_aws_s3', 'app.celery'],
+    include=['app.celery.tasks_email', 
+             'app.celery.tasks_embedding_sharepoint', 
+             'app.celery.tasks_embedding_mail', 
+             'app.celery.tasks_embedding_aws_s3',
+             'app.celery.tasks_embedding_azure',
+             'app.celery'],
 )
 
 # Override the default task ID generator
 celery.gen_task_id = generate_task_id
-
-
-# celery.conf.task_routes = {
-#     'mail_embedding.get_pending_jobs': {'queue': 'pending_jobs'},
-#     'mail_embedding.task_processing': {'queue': 'mail_embedding'},
-
-#     'sharepoint_embedding.get_pending_jobs': {'queue': 'pending_jobs'},
-#     'sharepoint_embedding.task_processing': {'queue': 'sharepoint_embedding'},
-
-#     'tasks_email.process_subjects': {'queue': 'mail_subject'}, 
-# }
-
 
 # Configure Celery
 celery.conf.update(
@@ -109,6 +116,8 @@ celery.conf.update(
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=10,
     broker_connection_timeout=5,
+    task_queue_max_priority=10,
+    task_default_priority=5,
 )
 
 if __name__ == '__main__':

@@ -15,7 +15,32 @@ redis:
   host: "localhost"
   port: 6379
   password: null  # null means no password
+# Other existing configuration...
 
+celery:
+  beat_schedule:
+    check-pending-mail-jobs:
+      task: mail_embedding.get_pending_jobs
+      schedule: 10  # seconds
+      args: []
+    check-pending-sharepoint-jobs:
+      task: sharepoint_embedding.get_pending_jobs
+      schedule: 10  # seconds
+      args: []
+    check-pending-aws-s3-jobs:
+      task: aws_s3_embedding.get_pending_jobs
+      schedule: 10  # seconds
+      args: []
+    check-pending-azure-jobs:
+      task: azure_embedding.get_pending_jobs
+      schedule: 10  # seconds
+      args: []
+      
+# Database settings
+postgres:
+  database_url: "postgres://postgres:mysecretpassword@localhost/postgres"
+  echo: false
+  
 rate_limits:
   tiers:
     free:

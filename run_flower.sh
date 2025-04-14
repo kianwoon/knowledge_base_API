@@ -18,7 +18,7 @@ fi
 
 # Run flower with the correct broker URL
 echo "Starting Flower with broker: $BROKER_URL"
-celery -A app.celery.worker.celery flower --broker=$BROKER_URL
+celery -A app.celery.worker.celery flower --broker=$BROKER_URL --url_prefix=mail/flower
 
 # Exit with the status of the celery command
 exit $?

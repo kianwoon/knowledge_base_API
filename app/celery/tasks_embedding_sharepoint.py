@@ -2,7 +2,7 @@
 from celery import shared_task
 from loguru import logger
  
-from app.worker.processors import EmbeddingFileProcessor 
+from app.worker.processors_file_sharepoint import EmbeddingSharepointProcessor as Processor
 from app.celery.worker import get_or_create_event_loop
  
 
@@ -16,7 +16,7 @@ def get_pending_jobs():
     """
     logger.info("Check pending jobs.")
     
-    processor = EmbeddingFileProcessor(source_repository="_sharepoint_knowledge", job_type="sharepoint", task_name="sharepoint_embedding.task_processing")
+    processor = Processor(source_repository="_sharepoint_knowledge", job_type="sharepoint", task_name="sharepoint_embedding.task_processing")
  
     loop = get_or_create_event_loop()
     results = loop.run_until_complete(processor.schedule_task())
@@ -36,8 +36,9 @@ def process_embedding(job_data: str):
     """ 
 
     logger.info("Processing embedding task " + job_data)
-    processor = EmbeddingFileProcessor(source_repository="_sharepoint_knowledge", job_type="sharepoint")
-     
+ 
+    processor = Processor(source_repository="_sharepoint_knowledge", job_type="sharepoint")
+    
     loop = get_or_create_event_loop()
     loop.run_until_complete(processor.do_embedding(job_data)) 
-    return ["Finished"]
+    return ["Finished"] 

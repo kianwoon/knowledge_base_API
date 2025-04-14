@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import argparse
 from typing import List, Dict, Any
 
-from app.core.redis import redis_client
+from app.core.hybrid_cache import hybrid_cache
 
 
 async def generate_api_key(client_id: str, tier: str) -> str:
@@ -27,7 +27,7 @@ async def generate_api_key(client_id: str, tier: str) -> str:
     random_part = secrets.token_hex(16)
     api_key = f"ma_{tier}_{random_part}"
     
-    # Store in Redis with 1-year expiration
+    # Store in cache with 1-year expiration
     await store_api_key(api_key, client_id, tier)
     
     return api_key
@@ -35,7 +35,7 @@ async def generate_api_key(client_id: str, tier: str) -> str:
 
 async def store_api_key(api_key: str, client_id: str, tier: str) -> bool:
     """
-    Store an API key in Redis.
+    Store an API key in the hybrid cache (Redis + PostgreSQL).
     
     Args:
         api_key: The API key to store
@@ -45,7 +45,7 @@ async def store_api_key(api_key: str, client_id: str, tier: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    # Store in Redis with 1-year expiration
+    # Store with 1-year expiration
     expiration = datetime.utcnow() + timedelta(days=365)
     
     # Get permissions for tier
@@ -59,11 +59,11 @@ async def store_api_key(api_key: str, client_id: str, tier: str) -> bool:
     elif tier == "admin":
         permissions = ["analyze", "status", "results", "webhook", "priority", "custom_models", "batch", "admin"]
     
-    # Connect to Redis
-    await redis_client.connect()
+    # Connect to hybrid cache
+    await hybrid_cache.connect()
     
-    # Store API key
-    await redis_client.setex(
+    # Store API key (will be written to both Redis and PostgreSQL)
+    await hybrid_cache.setex(
         f"api_keys:{api_key}",
         60 * 60 * 24 * 365,  # 1 year in seconds
         json.dumps({
@@ -76,15 +76,15 @@ async def store_api_key(api_key: str, client_id: str, tier: str) -> bool:
         })
     )
     
-    # Disconnect from Redis
-    await redis_client.disconnect()
+    # Disconnect from cache
+    await hybrid_cache.disconnect()
     
     return True
 
 
 async def list_api_keys(client_id: str = None) -> List[Dict[str, Any]]:
     """
-    List all API keys in Redis.
+    List all API keys in the cache.
     
     Args:
         client_id: Optional filter to list only keys for a specific client
@@ -92,18 +92,18 @@ async def list_api_keys(client_id: str = None) -> List[Dict[str, Any]]:
     Returns:
         List of API key information dictionaries
     """
-    # Connect to Redis
-    await redis_client.connect()
+    # Connect to hybrid cache
+    await hybrid_cache.connect()
     
-    # Get all API keys
-    keys = await redis_client.keys("api_keys:*")
+    # Get all API keys (will check Redis first, then PostgreSQL)
+    keys = await hybrid_cache.keys("api_keys:*")
     
     # Fetch all API key data
     api_keys_info = []
     for key in keys:
         # Handle both bytes and string keys
         key_str = key if isinstance(key, str) else key.decode()
-        data = await redis_client.get(key_str)
+        data = await hybrid_cache.get(key_str)
         
         if data:
             # Handle both bytes and string data
@@ -128,8 +128,8 @@ async def list_api_keys(client_id: str = None) -> List[Dict[str, Any]]:
                 
             api_keys_info.append(key_data)
     
-    # Disconnect from Redis
-    await redis_client.disconnect()
+    # Disconnect from cache
+    await hybrid_cache.disconnect()
     
     return api_keys_info
 

@@ -88,7 +88,7 @@ class EmbeddingFileProcessor(JobProcessor):
 
                 logger.info(f"Scheduled task with ID: {task.id} for job {job_id}")
 
-                await self.repository.update_job_status(job_id, "processing", owner)
+                # await self.repository.update_job_status(job_id, "processing", owner)
 
             except Exception as e:
                 logger.error(f"Error scheduling task for job {job_data}: {str(e)}")
@@ -109,8 +109,8 @@ class EmbeddingFileProcessor(JobProcessor):
             extra_data: Additional data for processing.
         """
         try: 
-            if job_status and job_status != "processing":
-                raise ValueError(f"Job status is not 'processing': {job_status}")
+            if job_status and job_status != "scheduled":
+                raise ValueError(f"Job status is not 'scheduled': {job_status}")
 
             # Add size checks and limits
             MAX_FILE_SIZE = 10000000  # Limit text processing to 10M chars

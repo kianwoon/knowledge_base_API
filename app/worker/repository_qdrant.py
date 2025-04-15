@@ -195,12 +195,12 @@ class QdrantRepository(JobRepository):
                 extra_data = result.get("extra_data", {}) 
                 
                 # Save embeddings using the QdrantClientManager
-            result = await qdrant_client.save_embeddings(
-                    job_id=job_id,
-                    embeddings=embeddings,
-                    collection_name=collection_name,
-                    extra_data=extra_data
-                )
+                result = await qdrant_client.save_embeddings(
+                        job_id=job_id,
+                        embeddings=embeddings,
+                        collection_name=collection_name,
+                        extra_data=extra_data
+                    )
             logger.info(f"Stored job results for job {job_id} in Qdrant collection {collection_name}")
         except Exception as e:
             logger.error(f"Error storing job results for job {job_id} in Qdrant: {str(e)}")
@@ -339,7 +339,7 @@ class QdrantRepository(JobRepository):
                         scroll_filter=filter,
                         with_payload=payload,
                         with_vectors=False,
-                        limit=1  # Limit to 5 pending jobs per collection
+                        limit=5  # Limit to 5 pending jobs per collection
                     )
                     
                     # Extract job IDs and format as Job objects

@@ -18,11 +18,13 @@ from app.celery.worker import celery
 class EmbeddingFileProcessor(JobProcessor):
     """Processor for AWS S3 text embedding jobs."""
 
-    def __init__(self, source_repository: str = "_aws_s3_knowledge", job_type: str = "aws_s3", task_name: str = "aws_s3_embedding.task_processing") -> None:
+    def __init__(self, source_repository: str, job_type: str, task_name: str = None) -> None:
         """
         Initialize the processor with a specific source repository.
         Args:
             source_repository: The source repository for the processor.
+            job_type: The type of job for the processor.
+            task_name: The name of the task for the processor.
         """
         
         self.repository = QdrantRepository(source_repository)

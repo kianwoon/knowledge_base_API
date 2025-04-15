@@ -12,20 +12,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV PATH="$HOME/.local/bin/:$PATH"
+ENV PATH="/root/.local/bin/:$PATH"
 
-# Create a virtual environment
-RUN $HOME/.local/bin/uv venv /opt/venv
-
-# Set environment variables to activate the virtual environment
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY . . 
 
 # Install Python dependencies with uv from pyproject.toml
-RUN $HOME/.local/bin/uv pip install --no-cache-dir .
+RUN pip install --no-cache-dir .
+ 
+# Create log directories
+RUN mkdir -p /var/log
 
-# Run the worker
-CMD ["sh", "-c", "unset PORT && python run_worker.py &"]
+# Dockerfile
+COPY entrypoint.worker.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

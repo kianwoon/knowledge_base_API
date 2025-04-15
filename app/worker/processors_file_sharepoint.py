@@ -47,7 +47,7 @@ class EmbeddingSharepointProcessor(EmbeddingFileProcessor):
         """
 
         extra_data = {
-            "extra_data": {k: v for k, v in job_data.items() if k != "content_b64"}
+            "extra_data": {k: v for k, v in job_data.items() if k != "content_b64" and k != "analysis_status"}
         }
 
         extra_data["extra_data"].update({

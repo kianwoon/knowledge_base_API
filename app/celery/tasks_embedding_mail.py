@@ -6,7 +6,17 @@ from app.worker.processors_file_mail import EmbeddingMailProcessor as Processor
 
 from app.celery.worker import  get_or_create_event_loop
 
-@shared_task(name="mail_embedding.get_pending_jobs")
+
+
+source = "_email_knowledge"
+job_type = "email"
+
+pending_task_name = "mail_embedding.get_pending_jobs"
+task_name = "mail_embedding.task_processing"
+ 
+queue_name = "background"
+
+@shared_task(name=pending_task_name, queue=queue_name)
 def get_pending_jobs():
     """
     Process embedding task.
@@ -16,7 +26,7 @@ def get_pending_jobs():
     """
     logger.info("Check pending jobs.")
     
-    processor = Processor(source_repository="_email_knowledge", job_type="email", task_name="mail_embedding.task_processing")
+    processor = Processor(source_repository=source, job_type=job_type, task_name=task_name)
  
     loop = get_or_create_event_loop()
     results = loop.run_until_complete(processor.schedule_task())
@@ -27,7 +37,7 @@ def get_pending_jobs():
 
 
 
-@shared_task(name="mail_embedding.task_processing")
+@shared_task(name=task_name, queue=queue_name)
 def process_embedding(job_data: str):
     """
     Process embedding task.
@@ -37,7 +47,7 @@ def process_embedding(job_data: str):
     """ 
 
     logger.info("Processing embedding task " + job_data)
-    processor = Processor(source_repository="_email_knowledge", job_type="email")
+    processor = Processor(source_repository=source, job_type=job_type)
      
     loop = get_or_create_event_loop()
     loop.run_until_complete(processor.do_embedding(job_data)) 

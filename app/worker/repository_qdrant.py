@@ -156,10 +156,10 @@ class QdrantRepository(JobRepository):
                 # Convert to JSON string
                 return json.dumps(job_data)
             else:
-                return None
+                return {}
         except Exception as e:
             logger.error(f"Error getting job data for job {job_id} from Qdrant: {str(e)}")
-            return None
+            return {}
     
     async def get_job_type(self, job_id: str, owner: str = None) -> Optional[str]:
         """

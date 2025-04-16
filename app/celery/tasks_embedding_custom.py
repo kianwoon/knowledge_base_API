@@ -3,20 +3,20 @@ from celery import shared_task
 from loguru import logger
  
 # from app.worker.processors_s3 import EmbeddingS3FileProcessor 
-from app.worker.processors_file_s3 import EmbeddingS3Processor as Processor
+from app.worker.processors_file_custom import EmbeddingCustomProcessor as Processor
 
 from app.celery.worker import get_or_create_event_loop
  
 
-source = "_aws_s3_knowledge"
-job_type = "aws_s3"
+source = "_custom_knowledge"
+job_type = "custom"
 
-pending_task_name = "aws_s3_embedding.get_pending_jobs"
-task_name = "aws_s3_embedding.task_processing"
+pending_task_name = "custom_embedding.get_pending_jobs"
+task_name = "custom_embedding.task_processing"
 
 queue_name = "background"
-
-@shared_task(name=pending_task_name, queue=queue_name)
+ 
+@shared_task(name=pending_task_name,queue=queue_name)
 def get_pending_jobs():
     """
     Process embedding task.
@@ -36,7 +36,7 @@ def get_pending_jobs():
     return results
 
 
-@shared_task(name=task_name, queue=queue_name)
+@shared_task(name=task_name,queue=queue_name)
 def process_embedding(job_data: str):
     """
     Process embedding task.

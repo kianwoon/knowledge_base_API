@@ -35,6 +35,10 @@ celery:
       task: azure_embedding.get_pending_jobs
       schedule: 10  # seconds
       args: []
+    check-pending-custom-jobs:
+      task: custom_embedding.get_pending_jobs
+      schedule: 10  # seconds
+      args: []
       
 # Database settings
 postgres:

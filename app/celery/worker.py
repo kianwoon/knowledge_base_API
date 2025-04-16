@@ -4,9 +4,7 @@ from celery import Celery
 from loguru import logger
 from app.core.config import get_settings
 from app.core.snowflake import generate_id
-import importlib
-import pkgutil
-
+ 
 
 # Get configuration settings
 settings = get_settings()
@@ -44,47 +42,22 @@ def get_or_create_event_loop():
 BEAT_SCHEDULE = {}
 if settings.celery_beat_schedule_config:
     for job_name, job_config in settings.celery_beat_schedule_config.items():
-        BEAT_SCHEDULE[job_name] = {
-            'task': job_config.get('task'),
+        task_name = job_config.get('task')
+        queue_name = job_config.get('queue', 'background')
+        
+        schedule_entry = {
+            'task': task_name,
             'schedule': int(job_config.get('schedule', 10)),
             'args': job_config.get('args', ()),
+            'options': {'queue': queue_name},
         }
-        logger.info(f"Added scheduled job: {job_name}")
+        
+        BEAT_SCHEDULE[job_name] = schedule_entry
+        logger.info(f"Added scheduled job: {job_name} to queue {queue_name}")
 else:
     logger.warning("No Celery beat schedule found in configuration")
 
-# Task ID generator function
-def generate_task_id():
-    return str(generate_id())
-
-
-
-# # Find all task modules in the app/tasks directory
-# def discover_tasks():
-#     task_modules = []
-#     tasks_package = 'app.tasks'
-    
-#     try:
-#         # Import the tasks package
-#         tasks_pkg = importlib.import_module(tasks_package)
-        
-#         # Get the package path
-#         pkg_path = os.path.dirname(tasks_pkg.__file__)
-        
-#         # Walk through all modules in the package
-#         for _, name, is_pkg in pkgutil.iter_modules([pkg_path]):
-#             # Add the module to the list (excluding subpackages)
-#             if not is_pkg:
-#                 task_modules.append(f"{tasks_package}.{name}")
-#                 logger.info(f"Discovered task module: {tasks_package}.{name}")
-    
-#     except (ImportError, AttributeError) as e:
-#         logger.warning(f"Could not discover task modules: {e}")
-    
-#     return task_modules
-
-# # Get all task modules
-# task_modules = discover_tasks
+  
 
 
 # Initialize Celery app with more robust connection settings
@@ -97,12 +70,10 @@ celery = Celery(
              'app.celery.tasks_embedding_mail', 
              'app.celery.tasks_embedding_aws_s3',
              'app.celery.tasks_embedding_azure',
+             'app.celery.tasks_embedding_custom',
              'app.celery'],
 )
-
-# Override the default task ID generator
-celery.gen_task_id = generate_task_id
-
+ 
 # Configure Celery
 celery.conf.update(
     task_serializer='json',
@@ -118,6 +89,7 @@ celery.conf.update(
     broker_connection_timeout=5,
     task_queue_max_priority=10,
     task_default_priority=5,
+    task_default_queue='background', 
 )
 
 if __name__ == '__main__':

@@ -7,9 +7,14 @@ from app.celery.worker import get_or_create_event_loop
  
 source = "_azure_blob_knowledge"
 job_type = "azure"
+
+pending_task_name = "azure_embedding.get_pending_jobs"
 task_name = "azure_embedding.task_processing"
 
-@shared_task(name="azure_embedding.get_pending_jobs")
+queue_name = "background"
+
+
+@shared_task(name=pending_task_name, queue=queue_name)
 def get_pending_jobs():
     """
     Process embedding task.
@@ -29,7 +34,7 @@ def get_pending_jobs():
     return results
 
 
-@shared_task(name=task_name)
+@shared_task(name=task_name, queue=queue_name)
 def process_embedding(job_data: str):
     """
     Process embedding task.

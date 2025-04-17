@@ -38,7 +38,8 @@ dependencies = [
     "python-pptx>=0.6.21",
     "html2text>=2024.2.26",
     "pandas>=2.2.3",
-    "PyPDF2>=3.0.1", 
+    "PyPDF2>=3.0.1",
+    "PyCryptodome>=3.17",
 
     # OpenAI Integration
     "openai>=1.0.0",

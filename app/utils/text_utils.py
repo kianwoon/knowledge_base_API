@@ -28,16 +28,12 @@ except ImportError:
 
 # Try importing PDF libraries
 try:
-    from PyPDF2 import PdfReader
-    pypdf2_available = True
+    import pymupdf4llm
+    import fitz  # PyMuPDF
+
+    pymupdf4llm_available = True
 except ImportError:
-    pypdf2_available = False
-    try:
-        from pdfminer.high_level import extract_text as pdfminer_extract_text
-        pdfminer_available = True
-    except ImportError:
-        pdfminer_available = False
-        logger.warning("PDF libraries not available, PDF conversion will be limited")
+    logger.warning("PDF libraries not available, PDF conversion will be limited")
 
 # Try importing PowerPoint libraries
 try:
@@ -270,56 +266,28 @@ def convert_pdf_to_markdown(pdf_content: Union[str, bytes]) -> str:
     if not pdf_content:
         return ""
     
-    try:
-        # Convert content to bytes if it's a string (likely base64)
-        if isinstance(pdf_content, str):
-            try:
-                import base64
-                binary_content = base64.b64decode(pdf_content)
-            except:
-                # If not base64, encode as UTF-8 (though this is unlikely for PDFs)
-                binary_content = pdf_content.encode('utf-8')
-        else:
-            binary_content = pdf_content
-        
-        # Create BytesIO object for PDF libraries to read
-        from io import BytesIO
-        pdf_file = BytesIO(binary_content)
-        
-        extracted_text = ""
-        
-        if pypdf2_available:
-            # Use PyPDF2 for extraction
-            reader = PdfReader(pdf_file)
-            
-            # Extract text from each page
-            for page_num in range(len(reader.pages)):
-                page = reader.pages[page_num]
-                page_text = page.extract_text() or ""
-                extracted_text += f"## Page {page_num+1}\n\n{page_text}\n\n"
+    # Convert content to bytes if it's a string (likely base64)
+    if isinstance(pdf_content, str):
+        try:
+            import base64
+            binary_content = base64.b64decode(pdf_content)
+
+            if not isinstance(binary_content, bytes):
+                raise ValueError("Decoded content is not in bytes format.")
                 
-        elif pdfminer_available:
-            # Fallback to pdfminer.six if PyPDF2 is not available
-            # Reset file pointer
-            pdf_file.seek(0)
-            raw_text = pdfminer_extract_text(pdf_file)
-            
-            # Simple formatting - split by double newlines which often indicate page breaks
-            pages = raw_text.split("\n\n\n")
-            for i, page in enumerate(pages):
-                if page.strip():
-                    extracted_text += f"## Page {i+1}\n\n{page.strip()}\n\n"
-        else:
-            return "PDF text extraction failed. Required libraries not installed."
-        
-        # Clean up the text
-        extracted_text = clean_text(extracted_text)
-        
-        return extracted_text
-            
-    except Exception as e:
-        logger.error(f"Error converting PDF to Markdown: {str(e)}")
-        return f"Error extracting text from PDF: {str(e)}"
+        except:
+            # If not base64, encode as UTF-8 (though this is unlikely for PDFs)
+            binary_content = pdf_content.encode('utf-8')
+    else:
+        binary_content = pdf_content
+    
+    # Step 2: Open PDF bytes as a PyMuPDF Document
+    pdf_document = fitz.open(stream=binary_content, filetype="pdf")
+
+    markdown_content = pymupdf4llm.to_markdown(pdf_document)
+
+    return markdown_content
+
 
 def convert_ppt_to_markdown(ppt_content: Union[str, bytes]) -> str:
     """

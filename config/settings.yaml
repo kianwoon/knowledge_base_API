@@ -32,7 +32,7 @@ celery:
       schedule: 10  # seconds
       args: []
     check-pending-azure-jobs:
-      task: azure_embedding.get_pending_jobs
+      task: azure_blob_embedding.get_pending_jobs
       schedule: 10  # seconds
       args: []
     check-pending-custom-jobs:

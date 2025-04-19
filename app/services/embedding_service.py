@@ -5,7 +5,6 @@ from loguru import logger
 
 from app.utils.text_chunker import TextChunker
 from fastembed import  TextEmbedding, LateInteractionTextEmbedding, SparseTextEmbedding 
-from FlagEmbedding import BGEM3FlagModel
 
 from app.core.const import DENSE_EMBEDDING_NAME, BM25_EMBEDDING_NAME, LATE_INTERACTION_EMBEDDING_NAME
 
@@ -46,13 +45,6 @@ class EmbeddingService():
             #     raise Exception("OpenAI API monthly cost limit reached")
 
             # 
-
-            # dense_embedding_model = BGEM3FlagModel('BAAI/bge-m3',  
-            #            use_fp16=False)
-
-
-            # output_1 = model.encode(sentences_1, return_dense=True, return_sparse=True, return_colbert_vecs=False)
-            # output_2 = model.encode(sentences_2, return_dense=True, return_sparse=True, return_colbert_vecs=False)
 
 
             # Chunk the text if needed

@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 from loguru import logger
 
 from app.core.snowflake import generate_id
+from app.services.embedding_service import embeddingService
 from app.services.openai_service import OpenAIService
 from app.worker.interfaces import JobProcessor
 from app.utils.text_utils import convert_to_text
@@ -143,10 +144,11 @@ class EmbeddingFileProcessor(JobProcessor):
                             f"Processing: {file_type}, size: {len(text_file)} chars",
                             extra={"job_id": job_id, "trace_id": trace_id}
                         )
-
-                        openai_service = OpenAIService() 
+   
                         # Generate embedding for attachment
-                        embedding_results = await openai_service.embedding_text(text_file)
+                        embedding_results = await embeddingService.embedding_text(text_file)
+
+
 
                         # Add the extra_data to the attachment result
                         embedding_results.update(extra_data)

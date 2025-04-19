@@ -23,13 +23,13 @@ class QdrantRepository(JobRepository):
     _collection_cache = {}  # Simple cache for collection existence
     _cache_expire_time = {}
 
-    def __init__(self, source_collection_name="_sharepoint_knowledge", target_collection_name="_knowledge_base", vector_size=1536):
+    def __init__(self, source_collection_name="_sharepoint_knowledge", target_collection_name="_knowledge_base_bm", vector_size=1536):
         """
         Initialize QdrantRepository.
         
         Args:
             source_collection_name: Default Qdrant source collection name (default: __sharepoint_knowledge)
-            target_collection_name: Default Qdrant target collection name (default: _knowledge_base)
+            target_collection_name: Default Qdrant target collection name (default: _knowledge_base_bm)
             vector_size: Size of the vector embeddings (default: 1536 for OpenAI embeddings)
         """
         self.source_collection_name = source_collection_name
@@ -188,8 +188,7 @@ class QdrantRepository(JobRepository):
         try:
             # Extract owner from results if available
             collection_name = owner + self.target_collection_name
-            await self._ensure_collection_exists(collection_name)
-
+            
             for result in results:
                 embeddings = result.get("embeddings", [])
                 extra_data = result.get("extra_data", {}) 
@@ -339,7 +338,7 @@ class QdrantRepository(JobRepository):
                         scroll_filter=filter,
                         with_payload=payload,
                         with_vectors=False,
-                        limit=5  # Limit to 5 pending jobs per collection
+                        limit=10  # Limit to 5 pending jobs per collection
                     )
                     
                     # Extract job IDs and format as Job objects

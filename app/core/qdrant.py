@@ -12,6 +12,7 @@ from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 from app.core.config import config
+from app.core.const import DENSE_EMBEDDING_NAME, BM25_EMBEDDING_NAME, LATE_INTERACTION_EMBEDDING_NAME
 
 
 class QdrantClientManager:
@@ -143,17 +144,35 @@ class QdrantClientManager:
             try:
                 collections_list = client.get_collections().collections
                 collection_names = [collection.name for collection in collections_list]
+                dense_embeddings = embeddings[0][DENSE_EMBEDDING_NAME]
+                late_interaction_embeddings = embeddings[0][LATE_INTERACTION_EMBEDDING_NAME]
                 
+
                 if collection_name not in collection_names:
                     logger.info(f"Creating collection {collection_name} for embeddings")
-                    vector_size = len(embeddings[0]["embedding"])
+
                     client.create_collection(
                         collection_name=collection_name,
-                        vectors_config=models.VectorParams(
-                            size=vector_size,
+                        vectors_config={
+                            "dense": models.VectorParams(
+                            size=len(dense_embeddings[0]),
                             distance=models.Distance.COSINE
-                        )
-                    )
+                
+                        ),
+                         "colbertv2.0": models.VectorParams(
+                            size=len(late_interaction_embeddings[0][0]),
+                            distance=models.Distance.COSINE,
+                            multivector_config=models.MultiVectorConfig(
+                                comparator=models.MultiVectorComparator.MAX_SIM,
+                            )
+                        ),
+                    },
+                    sparse_vectors_config={
+                        "bm25": models.SparseVectorParams(modifier=models.Modifier.IDF, )
+                    })
+                    
+                    logger.info(f"Created collection {collection_name} for embeddings")
+                    
             except Exception as e:
                 logger.error(f"Error checking/creating collection: {str(e)}")
                 
@@ -162,7 +181,11 @@ class QdrantClientManager:
             for embedding_item in embeddings:
                 # Generate a unique ID for each embedding
                 point_id = uuid.uuid4().hex
-                
+                dense_embedding = embedding_item[DENSE_EMBEDDING_NAME][0]
+                bm25_embedding = embedding_item[BM25_EMBEDDING_NAME][0]
+                late_interaction_embedding = embedding_item[LATE_INTERACTION_EMBEDDING_NAME][0]
+
+
                 # Create the point payload
                 payload = {
                     "chunk_index": embedding_item["chunk_index"],
@@ -172,7 +195,11 @@ class QdrantClientManager:
                  
                 points.append(models.PointStruct(
                     id=point_id,
-                    vector=embedding_item["embedding"],
+                    vector= {
+                        "dense": dense_embedding,
+                        "bm25": bm25_embedding.as_object(),
+                        "colbertv2.0": late_interaction_embedding,
+                    },
                     payload=payload
                 ))
             

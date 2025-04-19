@@ -20,24 +20,24 @@ redis:
 celery:
   beat_schedule:
     check-pending-mail-jobs:
-      task: mail_embedding.get_pending_jobs
-      schedule: 10  # seconds
+      task: email_embedding.get_pending_jobs
+      schedule: 2  # seconds
       args: []
     check-pending-sharepoint-jobs:
       task: sharepoint_embedding.get_pending_jobs
-      schedule: 10  # seconds
+      schedule: 2  # seconds
       args: []
     check-pending-aws-s3-jobs:
       task: aws_s3_embedding.get_pending_jobs
-      schedule: 10  # seconds
+      schedule: 2  # seconds
       args: []
     check-pending-azure-jobs:
       task: azure_blob_embedding.get_pending_jobs
-      schedule: 10  # seconds
+      schedule: 2  # seconds
       args: []
     check-pending-custom-jobs:
       task: custom_embedding.get_pending_jobs
-      schedule: 10  # seconds
+      schedule: 2  # seconds
       args: []
       
 # Database settings

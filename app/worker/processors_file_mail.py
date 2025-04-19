@@ -6,6 +6,7 @@ Job processor implementations for the Worker module.
 from typing import Dict, Any
 from loguru import logger
 
+from app.services.embedding_service import embeddingService
 from app.services.openai_service import OpenAIService
 from app.utils.text_utils import convert_to_text, html_to_markdown
 from app.worker.processors_file_common import EmbeddingFileProcessor
@@ -102,10 +103,9 @@ class EmbeddingMailProcessor(EmbeddingFileProcessor):
             f"Processing embedding job {job_id}, trace_id: {trace_id}, original length: {original_length}, processed length: {processed_length}",
             extra={"job_id": job_id, "trace_id": trace_id}
         )        
+ 
+        result = await embeddingService.embedding_text(text)
 
-        openai_service = OpenAIService()
-            
-        result = await openai_service.embedding_text(text)
 
         extra_data = {} 
         

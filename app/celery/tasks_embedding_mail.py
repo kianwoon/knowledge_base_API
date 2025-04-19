@@ -8,7 +8,7 @@ from app.celery.worker import  get_or_create_event_loop
 
 from app.models.task_config import TaskConfig
 
-task = TaskConfig("mail") 
+task = TaskConfig("email") 
 
 @shared_task(name=task.pending_task_name, queue=task.queue_name)
 def get_pending_jobs():

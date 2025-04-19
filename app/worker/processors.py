@@ -227,7 +227,7 @@ class EmbeddingMailProcessor(JobProcessor):
     
         return results
     
-    def __init__(self, source_repository: str = "_email_knowledge", job_type: str = "email", task_name: str = "mail_embedding.task_processing") -> None:
+    def __init__(self, source_repository: str = "_email_knowledge", job_type: str = "email", task_name: str = "email_embedding.task_processing") -> None:
         """
         Initialize the processor with a specific source repository.
         Args:

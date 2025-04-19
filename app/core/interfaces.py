@@ -127,4 +127,17 @@ class AIServiceInterface(ABC):
     def embedding_text(self, text: str) -> Dict[str, Any]:
         """Generate embeddings for a given text."""
         pass
+
+class EmbeddingServiceInterface(ABC):
+    """Interface for embedding service operations."""
+    
+    @abstractmethod
+    def embedding_text(self, text: str) -> Dict[str, Any]:
+        """Generate embeddings for a given text."""
+        pass
+
+    @abstractmethod
+    async def batch_embedding_text(self, texts: List[str]) -> List[Dict[str, Any]]:
+        """Generate embeddings for a list of texts."""
+        pass
     

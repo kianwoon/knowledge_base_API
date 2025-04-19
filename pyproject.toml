@@ -45,7 +45,6 @@ dependencies = [
     "openai>=1.0.0",
     "qdrant-client>=1.13.3",
     "fastembed>=0.6.1",
-    "FlagEmbedding>=1.3.4",
 
     # Security
     "cryptography>=40.0.1",

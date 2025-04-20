@@ -325,8 +325,11 @@ class QdrantRepository(JobRepository):
             source_collections = [collection.name for collection in collections if collection.name.endswith(self.source_collection_name)]
             
             pending_jobs = []
-            job_ids = set()  # Use a set to deduplicate job IDs
+            tz_utc8 = timezone(timedelta(hours=8))
             
+            # Track job IDs per collection
+            collection_job_ids = {}
+             
             # Search each collection for pending jobs
             for collection_name in source_collections:
                 try:
@@ -341,18 +344,36 @@ class QdrantRepository(JobRepository):
                         limit=10  # Limit to 5 pending jobs per collection
                     )
                     
+                    # Initialize collection job IDs set if not exists
+                    if collection_name not in collection_job_ids:
+                        collection_job_ids[collection_name] = set()
+                    
                     # Extract job IDs and format as Job objects
-                    # Extract job IDs and format as Redis-compatible keys
                     for point in results:
                         job_id = point.id
-                        if job_id and job_id not in job_ids:
-                            job_ids.add(job_id)
+                        if job_id:
+                            collection_job_ids[collection_name].add(job_id)
                             pending_jobs.append(f"{job_type}:{job_id}:{owner}")
                     # logger.info(f"Found {len(results)} pending jobs in collection {collection_name}")
+
+                    # Get current time with UTC+8 timezone
+                    now_utc8 = datetime.now(tz_utc8)
                 except Exception as e:
                     logger.error(f"Error querying collection {collection_name}: {str(e)}")
                     continue
-            
+
+            # Update job statuses for each collection
+            now_utc8 = datetime.now(tz_utc8)
+            for collection_name, job_ids in collection_job_ids.items():
+                if job_ids:
+                    # Update the status field for this collection
+                    client.set_payload(
+                        collection_name=collection_name,
+                        payload={"analysis_status": "scheduled", "lastAnalysisUpdate": now_utc8.isoformat()},
+                        points=list(job_ids)
+                    )
+                    logger.info(f"Updated job status to 'scheduled' in collection {collection_name} for {len(job_ids)} jobs")
+
             return pending_jobs
         except Exception as e:
             logger.error(f"Error getting pending jobs from Qdrant: {str(e)}")

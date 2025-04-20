@@ -80,8 +80,8 @@ class EmbeddingFileProcessor(JobProcessor):
                 
                 job_type, job_id, owner = job_data.split(":")
 
-                await self.repository.update_job_status(job_id, "scheduled", owner)
-                logger.info(f"Processing Job ID: {job_id}, Owner: {owner}")
+                # await self.repository.update_job_status(job_id, "scheduled", owner)
+                # logger.info(f"Processing Job ID: {job_id}, Owner: {owner}")
                 
                 # Schedule the task without awaiting it (use synchronous Celery API)
                 

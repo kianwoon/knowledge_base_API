@@ -2,9 +2,7 @@ import asyncio
 import json
 from celery import shared_task
 
-from app.worker.notifier import DefaultWebhookNotifier 
-from app.worker.processors import SubjectAnalysisProcessor
-from loguru import logger 
+
 
 @shared_task(name="task_email.process_subjects")
 def process_subjects(job_id: str, job_data: str, client_id: str, trace_id: str = None):
@@ -17,6 +15,9 @@ def process_subjects(job_id: str, job_data: str, client_id: str, trace_id: str =
         client_id: Client ID
         trace_id: Trace ID
     """
+    from app.worker.notifier import DefaultWebhookNotifier 
+    from app.worker.processors import SubjectAnalysisProcessor
+    from loguru import logger
     try:
         
         # Log the start of processing

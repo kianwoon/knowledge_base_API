@@ -3,7 +3,6 @@ import os
 from celery import Celery
 from loguru import logger
 from app.core.config import get_settings
-from app.core.snowflake import generate_id
  
 
 # Get configuration settings

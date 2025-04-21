@@ -2,10 +2,7 @@
 from celery import shared_task
 from loguru import logger
  
-from app.worker.processors_file_mail import EmbeddingMailProcessor as Processor
-
 from app.celery.worker import  get_or_create_event_loop
-
 from app.models.task_config import TaskConfig
 
 task = TaskConfig("email") 
@@ -20,6 +17,7 @@ def get_pending_jobs():
     """
     logger.info("Check pending jobs.")
     
+    from app.worker.processors_file_mail import EmbeddingMailProcessor as Processor
     processor = Processor(source_repository=task.source, job_type=task.job_type, task_name=task.task_name)
  
     loop = get_or_create_event_loop()
@@ -41,6 +39,8 @@ def process_embedding(job_data: str):
     """ 
 
     logger.info("Processing embedding task " + job_data)
+    from app.worker.processors_file_mail import EmbeddingMailProcessor as Processor
+
     processor = Processor(source_repository=task.source, job_type=task.job_type)
      
     loop = get_or_create_event_loop()

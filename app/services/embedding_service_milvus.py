@@ -3,20 +3,25 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
-from app.utils.text_chunker import TextChunker
-from fastembed import  TextEmbedding, LateInteractionTextEmbedding, SparseTextEmbedding 
+from app.utils.text_chunker import TextChunker 
+from app.core.const import DENSE_EMBEDDING_NAME, SPARSE_FLOAT_VECTOR_NAME
+import FlagEmbedding
 
-from app.core.const import DENSE_EMBEDDING_NAME, BM25_EMBEDDING_NAME, LATE_INTERACTION_EMBEDDING_NAME
+from pymilvus.model.hybrid import BGEM3EmbeddingFunction
+embedding_fn = BGEM3EmbeddingFunction(
+    model_name='BAAI/bge-m3',  # Specify the model name
+    device='cpu',  # Specify the device to use, 'cpu' is more stable
+    use_fp16=False  # Set to False for CPU usage
+)
 
-dense_embedding_model =  TextEmbedding("BAAI/bge-base-en-v1.5") 
-bm25_embedding_model = SparseTextEmbedding("Qdrant/bm25")
-late_interaction_embedding_model = LateInteractionTextEmbedding("colbert-ir/colbertv2.0")
+# Don't initialize at module level - will be created per instance
+# embedding_fn = BGEM3EmbeddingFunction()
 
 
-class EmbeddingService():
+class EmbeddingServiceMilvus():
     """Service for interacting with OpenAI API."""
     
-    def __init__(self,   text_chunker: TextChunker = None):   
+    def __init__(self, text_chunker: TextChunker = None):   
         """Initialize OpenAI service.
         
         Args:
@@ -24,10 +29,13 @@ class EmbeddingService():
             cost_tracker: Cost tracker for API usage
             text_chunker: Text chunker for splitting text into manageable pieces
         """
- 
         self.text_chunker = text_chunker or TextChunker()
+        # Initialize the embedding function in the instance
+
         
     async def embedding_text(self, text: str) -> list[Any]:
+
+
         """Get embedding for text using OpenAI API.
         
         Args:
@@ -39,14 +47,12 @@ class EmbeddingService():
         logger.info(f"Starting embedding generation for text of length: {len(text)} characters")
         
         try:
+
+
+
+
             # Check cost limit
-            # if not await self.cost_tracker.check_limit():
-            #     logger.warning("OpenAI API monthly cost limit reached")
-            #     raise Exception("OpenAI API monthly cost limit reached")
-
-            # 
-
-
+ 
             # Chunk the text if needed
             chunks = self.text_chunker.chunk_text(text)
             logger.info(f"Text split into {len(chunks)} chunks (size: {self.text_chunker.chunk_size}, overlap: {self.text_chunker.chunk_overlap})")
@@ -62,26 +68,26 @@ class EmbeddingService():
             
             while start_idx < len(chunks):
                 batch_chunks = chunks[start_idx:start_idx+batch_size]
-                try:
- 
-
-
+                try: 
                     # Process batch results
-                    for j, embedding_data in enumerate(batch_chunks):
+                    for j, chunk_text in enumerate(batch_chunks):
                         chunk_idx = start_idx + j
                         if chunk_idx < len(chunks):
-
-                            # dense_embedding = dense_embedding_model.encode(embedding_data, return_dense=True, return_sparse=True, return_colbert_vecs=True)
-
-                            dense_embedding = list(dense_embedding_model.embed(embedding_data))
-                            bm25_embeddings = list(bm25_embedding_model.embed(embedding_data))
-                            late_interaction_embeddings = list(late_interaction_embedding_model.embed(embedding_data))
-
+                            try:
+                                # BGE-M3 expects a list of strings, even for a single document
+                                # Make sure we're passing a list with a single string instead of just the string
+                                embeddings = embedding_fn.encode_documents([chunk_text])
+                            except Exception as e:
+                                import traceback
+                                logger.error(traceback.format_exc())
+                                
+                                logger.error(f"Error generating embeddings for chunk {chunk_idx}: {str(e)}")
+                                continue
+                        
                             all_embeddings.append({
                                 "chunk_index": chunk_idx,
-                                DENSE_EMBEDDING_NAME: dense_embedding,
-                                BM25_EMBEDDING_NAME: bm25_embeddings,
-                                LATE_INTERACTION_EMBEDDING_NAME: late_interaction_embeddings,
+                                DENSE_EMBEDDING_NAME: embeddings["dense"], 
+                                SPARSE_FLOAT_VECTOR_NAME: embeddings["sparse"],
                                 "content": chunks[chunk_idx],
                                 "content_preview": chunks[chunk_idx][:100] + "..." if len(chunks[chunk_idx]) > 100 else chunks[chunk_idx]
                             }) 
@@ -100,7 +106,7 @@ class EmbeddingService():
             result = {
                 "embeddings": all_embeddings,
                 "chunk_count": len(chunks), 
-                "_metadata": {
+                "extra_data": {
                     "model": "BAAI/bge-m3",
                     "chunks": len(chunks),
                     "chunk_size": self.text_chunker.chunk_size,
@@ -116,4 +122,4 @@ class EmbeddingService():
             raise e
 
 
-embeddingService = EmbeddingService()
+embeddingService = EmbeddingServiceMilvus()

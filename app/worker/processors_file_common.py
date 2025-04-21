@@ -8,10 +8,12 @@ from typing import Dict, Any, List
 from loguru import logger
 
 from app.core.snowflake import generate_id
-from app.services.embedding_service import embeddingService
+from app.services.embedding_service_qdrant import embeddingService
+from app.services.embedding_service_milvus import embeddingService as embeddingServiceMilvus    
 from app.services.openai_service import OpenAIService
 from app.worker.interfaces import JobProcessor
 from app.utils.text_utils import convert_to_text
+from app.worker.repository_milvus import MilvusRepository
 from app.worker.repository_qdrant import QdrantRepository
 
 from app.celery.worker import celery
@@ -59,7 +61,10 @@ class EmbeddingFileProcessor(JobProcessor):
         results = await self.start_embedding(job_json, job_id, trace_id, owner)
 
         # Store results
-        await self.repository.store_job_results(job_id, results, owner)
+        # await self.repository.store_job_results(job_id, results, owner)
+        milvus = MilvusRepository(self.source_repository)
+
+        await milvus.store_job_results(job_id, results, owner)
         
         # Update job status
         await self.repository.update_job_status(job_id, "completed", owner)
@@ -146,8 +151,7 @@ class EmbeddingFileProcessor(JobProcessor):
                         )
    
                         # Generate embedding for attachment
-                        embedding_results = await embeddingService.embedding_text(text_file)
-
+                        embedding_results = await embeddingServiceMilvus.embedding_text(text_file)
 
 
                         # Add the extra_data to the attachment result

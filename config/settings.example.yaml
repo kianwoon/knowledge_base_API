@@ -54,6 +54,25 @@ openai:
     - "gpt-3.5-turbo-1106"
   fallback_model: "gpt-4o-mini"
 
+# Qdrant configuration
+qdrant:
+  host: "localhost"
+  port: 6333
+  api_key: null  # null means no API key
+  timeout: 10.0
+  collection_suffix_email: "_email_knowledge_base"
+  collection_suffix_knowledge: "_knowledge_base"
+
+# Milvus configuration
+milvus:
+  host: "localhost"
+  port: 19530
+  user: ""  # empty string means no username
+  password: ""  # empty string means no password
+  timeout: 30.0
+  collection_suffix_email: "_email_knowledge_base"
+  collection_suffix_knowledge: "_knowledge_base"
+
 email_analysis:
   department_keywords:
     IT: ["software", "hardware", "server", "network", "computer", "technology", "technical", "IT"]

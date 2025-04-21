@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     qdrant_timeout: float = 10.0
     qdrant_collection_suffix_email: str = os.getenv("QDRANT_COLLECTION_SUFFIX_EMAIL", "_email_knowledge_base")
     qdrant_collection_suffix_knowledge: str = os.getenv("QDRANT_COLLECTION_SUFFIX_KNOWLEDGE", "_knowledge_base")
+    
+    # Milvus configuration
+    milvus_host: str = "localhost"
+    milvus_port: int = 19530
+    milvus_user: str = ""
+    milvus_password: str = ""
+    milvus_api_key: str = ""
+    milvus_timeout: float = 30.0
+    milvus_collection_suffix_email: str = os.getenv("MILVUS_COLLECTION_SUFFIX_EMAIL", "_email_knowledge_base")
+    milvus_collection_suffix_knowledge: str = os.getenv("MILVUS_COLLECTION_SUFFIX_KNOWLEDGE", "_knowledge_base")
 
     # Environment configuration
     env: str = "development"
@@ -196,6 +206,8 @@ def merge_configs(env_config: Settings, file_config: Dict[str, Any]) -> Dict[str
             merged_config.setdefault("openai", {})[key.replace("openai_", "")] = value
         elif key in ["qdrant_host", "qdrant_port", "qdrant_api_key", "qdrant_timeout", "qdrant_collection_name"]:
             merged_config.setdefault("qdrant", {})[key.replace("qdrant_", "")] = value
+        elif key in ["milvus_host", "milvus_port", "milvus_user", "milvus_password", "milvus_api_key", "milvus_timeout", "milvus_collection_suffix_email", "milvus_collection_suffix_knowledge"]:
+            merged_config.setdefault("milvus", {})[key.replace("milvus_", "")] = value
         elif key in ["celery_broker_url", "celery_result_backend"]:
             merged_config.setdefault("celery", {})[key.replace("celery_", "")] = value
         elif key == "celery_beat_schedule_interval":

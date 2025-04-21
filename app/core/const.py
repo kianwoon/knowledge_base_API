@@ -18,3 +18,4 @@ class JobType(Enum):
 DENSE_EMBEDDING_NAME = "dense_embedding"
 BM25_EMBEDDING_NAME = "bm25_embedding"
 LATE_INTERACTION_EMBEDDING_NAME = "late_interaction_embedding"
+SPARSE_FLOAT_VECTOR_NAME = "sparse_float_vector"

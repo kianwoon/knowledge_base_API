@@ -50,6 +50,9 @@ logs/
 tmp/
 temp/
 
+# Data and models
+data/models/
+
 # OS specific
 .DS_Store
 *.db
@@ -60,3 +63,5 @@ temp/
 # Test
 /tests/
 .ruff_cache/
+
+

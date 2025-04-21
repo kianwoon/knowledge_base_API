@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from loguru import logger
 
@@ -8,9 +8,11 @@ from fastembed import  TextEmbedding, LateInteractionTextEmbedding, SparseTextEm
 
 from app.core.const import DENSE_EMBEDDING_NAME, BM25_EMBEDDING_NAME, LATE_INTERACTION_EMBEDDING_NAME
 
-dense_embedding_model =  TextEmbedding("BAAI/bge-base-en-v1.5") 
-bm25_embedding_model = SparseTextEmbedding("Qdrant/bm25")
-late_interaction_embedding_model = LateInteractionTextEmbedding("colbert-ir/colbertv2.0")
+
+
+dense_embedding_model =  TextEmbedding(model_name="BAAI/bge-base-en-v1.5", cache_dir="./data/models") 
+bm25_embedding_model = SparseTextEmbedding(model_name="Qdrant/bm25", cache_dir="./data/models") 
+late_interaction_embedding_model = LateInteractionTextEmbedding(model_name="colbert-ir/colbertv2.0", cache_dir="./data/models") 
 
 
 class EmbeddingService():
@@ -63,8 +65,6 @@ class EmbeddingService():
             while start_idx < len(chunks):
                 batch_chunks = chunks[start_idx:start_idx+batch_size]
                 try:
- 
-
 
                     # Process batch results
                     for j, embedding_data in enumerate(batch_chunks):

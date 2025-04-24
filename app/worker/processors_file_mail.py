@@ -5,11 +5,9 @@ Job processor implementations for the Worker module.
 
 from typing import Dict, Any
 from loguru import logger
-
-from app.services.embedding_service_qdrant import embeddingService
+ 
 from app.services.embedding_service_milvus import embeddingService as embeddingServiceMilvus
-
-from app.services.openai_service import OpenAIService
+ 
 from app.utils.text_utils import convert_to_text, html_to_markdown
 from app.worker.processors_file_common import EmbeddingFileProcessor
 
@@ -30,7 +28,7 @@ class EmbeddingMailProcessor(EmbeddingFileProcessor):
         
         payload = ["job_id", "analysis_status", "type"]
 
-        pending_jobs = await self.repository.get_pending_jobs(self.job_type, filter, payload)                 
+        pending_jobs = [] #await self.target_repository.get_pending_jobs(self.job_type, filter, payload)                 
   
         if not pending_jobs:
             logger.info("No pending jobs found for processing.")

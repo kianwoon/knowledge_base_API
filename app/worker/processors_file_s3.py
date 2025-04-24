@@ -15,15 +15,11 @@ class EmbeddingS3Processor(EmbeddingFileProcessor):
 
         # Use the instance repository instead of creating a new one
         
-        filter = {
-                    "must": [
-                            {"key": "analysis_status", "match": {"value": "pending"}}
-                            ]
-                }
+        filter = ""
         
         payload = ["id", "analysis_status"]
 
-        pending_jobs = await self.repository.get_pending_jobs(self.job_type, filter, payload)                 
+        pending_jobs = await self.source_repository.get_pending_jobs(self.job_type)                 
   
         if not pending_jobs:
             logger.info("No pending jobs found for processing.")

@@ -14,16 +14,8 @@ class EmbeddingSharepointProcessor(EmbeddingFileProcessor):
     async def get_pending_jobs(self) -> Dict[str, Any]:
 
         # Use the instance repository instead of creating a new one
-        
-        filter = {
-                    "must": [
-                            {"key": "analysis_status", "match": {"value": "pending"}}
-                            ]
-                }
-        
-        payload = ["id", "analysis_status"]
 
-        pending_jobs = await self.repository.get_pending_jobs(self.job_type, filter, payload)                 
+        pending_jobs = await self.source_repository.get_pending_jobs(self.job_type)                 
   
         if not pending_jobs:
             logger.info("No pending jobs found for processing.")
@@ -51,10 +43,10 @@ class EmbeddingSharepointProcessor(EmbeddingFileProcessor):
         }
 
         extra_data["extra_data"].update({
-            "owner": owner,  # Include owner in extra_data
             "sensitivity": job_data.get("sensitivity", "internal"),  # Include sensitivity in extra_data
-            "source": self.job_type
         })
+
+
 
         fileSize = int(job_data.get("size", 0))
 

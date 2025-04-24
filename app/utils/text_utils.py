@@ -161,40 +161,25 @@ def clean_text(text: str, remove_urls: bool = False, remove_emails: bool = False
     
     return text.strip()
 
-def convert_excel_to_json(content: str) -> str:
+def convert_excel_to_json(excel_file: str) -> str:
     """
     Convert Excel content to JSON format.
     
     Args:
-        content: Excel file content as string or bytes
+        excel_file: Path to the Excel file
         
     Returns:
         JSON string representation of the Excel data
     """
-    if not content:
+    if not excel_file:
         return ""
     
     try:
-        # If content is already in text form, just return it
-        if isinstance(content, str) and (content.startswith("{") or content.startswith("[")):
-            return content
+        # If content is a JSON string, just return it
+        if isinstance(excel_file, str) and (excel_file.startswith("{") or excel_file.startswith("[")):
+            return excel_file
             
         if pandas_available:
-            # Convert content to bytes if it's a string
-            if isinstance(content, str):
-                try:
-                    # Try to decode as base64
-                    import base64
-                    binary_content = base64.b64decode(content)
-                except:
-                    # If not base64, encode as UTF-8
-                    binary_content = content.encode('utf-8')
-            else:
-                binary_content = content
-            
-            # Create BytesIO object for pandas to read
-            excel_file = io.BytesIO(binary_content)
-            
             # Read all sheets from the Excel file
             result = {}
             excel_data = pd.read_excel(excel_file, sheet_name=None)
@@ -218,12 +203,12 @@ def convert_excel_to_json(content: str) -> str:
                     for key, value in record.items():
                         # Convert any pandas Timestamp objects to strings
                         if hasattr(value, 'strftime'):
-                            processed_record[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+                            processed_record[str(key)] = value.strftime('%Y-%m-%d %H:%M:%S')
                         else:
-                            processed_record[key] = value
+                            processed_record[str(key)] = value
                     processed_data.append(processed_record)
                     
-                result[sheet_name] = processed_data
+                result[str(sheet_name)] = processed_data
             
             # Custom JSON encoder for any other date/time types
             class CustomJSONEncoder(json.JSONEncoder):
@@ -237,23 +222,15 @@ def convert_excel_to_json(content: str) -> str:
         else:
             # Fallback for when pandas isn't available
             logger.warning("pandas not available for Excel conversion, returning simple text")
-            
-            # If content is bytes, try to decode it
-            if not isinstance(content, str):
-                try:
-                    return content.decode('utf-8')
-                except:
-                    return "Excel content couldn't be converted without pandas library."
-            return content
+            return "Excel content couldn't be converted without pandas library."
     except Exception as e:
         logger.error(f"Error converting Excel to JSON: {str(e)}")
         # Return a simplified error message in JSON format
         return json.dumps({
-            "error": f"Failed to convert Excel file: {str(e)}",
-            "text": content[:1000] + "..." if len(content) > 1000 else content
+            "error": f"Failed to convert Excel file: {str(e)}"
         })
 
-def convert_pdf_to_markdown(pdf_content: Union[str, bytes]) -> str:
+def convert_pdf_to_markdown(pdf_file:str) -> str:
     """
     Convert PDF content to Markdown text format.
     
@@ -263,64 +240,34 @@ def convert_pdf_to_markdown(pdf_content: Union[str, bytes]) -> str:
     Returns:
         Markdown formatted text extracted from the PDF
     """
-    if not pdf_content:
-        return ""
-    
-    # Convert content to bytes if it's a string (likely base64)
-    if isinstance(pdf_content, str):
-        try:
-            import base64
-            binary_content = base64.b64decode(pdf_content)
-
-            if not isinstance(binary_content, bytes):
-                raise ValueError("Decoded content is not in bytes format.")
-                
-        except:
-            # If not base64, encode as UTF-8 (though this is unlikely for PDFs)
-            binary_content = pdf_content.encode('utf-8')
-    else:
-        binary_content = pdf_content
+ 
     
     # Step 2: Open PDF bytes as a PyMuPDF Document
-    pdf_document = fitz.open(stream=binary_content, filetype="pdf")
+    pdf_document = fitz.open(filename=pdf_file, filetype="pdf")
 
     markdown_content = pymupdf4llm.to_markdown(pdf_document)
 
     return markdown_content
 
 
-def convert_ppt_to_markdown(ppt_content: Union[str, bytes]) -> str:
+def convert_ppt_to_markdown(ppt_file: str) -> str:
     """
     Convert PowerPoint content to Markdown text format.
     
     Args:
-        ppt_content: PowerPoint file content as bytes or base64 encoded string
+        ppt_file: Full path to the PowerPoint file
         
     Returns:
         Markdown formatted text extracted from the PowerPoint
     """
-    if not ppt_content:
+    if not ppt_file:
         return ""
     
     try:
-        # Convert content to bytes if it's a string (likely base64)
-        if isinstance(ppt_content, str):
-            try:
-                binary_content = base64.b64decode(ppt_content)
-            except:
-                # If not base64, encode as UTF-8 (though this is unlikely for PPT)
-                binary_content = ppt_content.encode('utf-8')
-        else:
-            binary_content = ppt_content
-        
-        # Create BytesIO object for the PowerPoint library to read
-        from io import BytesIO
-        ppt_file = BytesIO(binary_content)
-        
         extracted_text = ""
         
         if pptx_available:
-            # Use python-pptx for extraction
+            # Use python-pptx for extraction - open directly from file path
             presentation = Presentation(ppt_file)
             
             # Extract text from each slide
@@ -356,43 +303,28 @@ def convert_ppt_to_markdown(ppt_content: Union[str, bytes]) -> str:
         logger.error(f"Error converting PowerPoint to Markdown: {str(e)}")
         return f"Error extracting text from PowerPoint: {str(e)}"
 
-def convert_word_to_markdown(word_content: Union[str, bytes]) -> str:
+def convert_word_to_markdown(word_file: str) -> str:
     """
     Convert Word document content to Markdown text format.
     
     Args:
-        word_content: Word document file content as bytes or base64 encoded string
+        word_file: Path to the Word document file
         
     Returns:
         Markdown formatted text extracted from the Word document
     """
-    if not word_content:
+    if not word_file:
         return ""
     
     try:
-        # Convert content to bytes if it's a string (likely base64)
-        if isinstance(word_content, str):
-            try:
-                binary_content = base64.b64decode(word_content)
-            except:
-                # If not base64, encode as UTF-8 (though this is unlikely for Word docs)
-                binary_content = word_content.encode('utf-8')
-        else:
-            binary_content = word_content
-        
-        # Create BytesIO object for the document libraries to read
-        from io import BytesIO
-        doc_file = BytesIO(binary_content)
-        
         extracted_text = ""
         
-        # Try to identify if it's a .docx file by examining the first few bytes
-        # .docx files are actually zip files and start with PK signature
-        is_docx = binary_content[:4] == b'PK\x03\x04'
+        # Check if it's a .docx file by examining the file extension
+        is_docx = word_file.lower().endswith('.docx')
         
         if docx_available and is_docx:
             # Use python-docx for .docx files
-            doc = docx.Document(doc_file)
+            doc = docx.Document(word_file)
             
             # Process document structure and convert to markdown
             
@@ -447,26 +379,14 @@ def convert_word_to_markdown(word_content: Union[str, bytes]) -> str:
             
         elif textract_available:
             # Fallback to textract for other document types including .doc
-            # Save binary content to a temporary file
-            import tempfile
-            import os
+            # Use textract to extract text directly from the file
+            doc_text = textract.process(word_file).decode('utf-8')
             
-            temp_fd, temp_path = tempfile.mkstemp(suffix='.doc')
-            try:
-                with os.fdopen(temp_fd, 'wb') as tmp:
-                    tmp.write(binary_content)
-                
-                # Use textract to extract text
-                doc_text = textract.process(temp_path).decode('utf-8')
-                
-                # Basic formatting for paragraphs
-                paragraphs = doc_text.split('\n\n')
-                for para in paragraphs:
-                    if para.strip():
-                        extracted_text += f"{para.strip()}\n\n"
-            finally:
-                # Clean up the temp file
-                os.unlink(temp_path)
+            # Basic formatting for paragraphs
+            paragraphs = doc_text.split('\n\n')
+            for para in paragraphs:
+                if para.strip():
+                    extracted_text += f"{para.strip()}\n\n"
         else:
             return "Word document text extraction failed. Required libraries not installed."
         
@@ -479,7 +399,7 @@ def convert_word_to_markdown(word_content: Union[str, bytes]) -> str:
         logger.error(f"Error converting Word document to Markdown: {str(e)}")
         return f"Error extracting text from Word document: {str(e)}"
 
-def convert_to_text(content: str, file_type: str) -> str:
+def convert_to_text(fileName: str, file_type: str) -> str:
     """
     Convert attachment content to plain text based on file type.
     
@@ -491,7 +411,7 @@ def convert_to_text(content: str, file_type: str) -> str:
         Extracted text from the attachment
     """
     # If content is already provided as text, just return it
-    if not content:
+    if not fileName:
         return ""
     
     # Normalize file type to lowercase
@@ -501,36 +421,41 @@ def convert_to_text(content: str, file_type: str) -> str:
         # Handle different file types based on MIME types or extensions
         # PDF files
         if "application/pdf" in file_type or file_type.endswith(".pdf"):
-            return convert_pdf_to_markdown(content)
+            return convert_pdf_to_markdown(fileName)
             
         # Word documents - use exact matching for MIME types and extension checking for simple types
         elif (file_type == "application/msword" or 
               file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or
               file_type.endswith(".docx") or file_type.endswith(".doc") or 
               file_type == "word"):
-            return convert_word_to_markdown(content)
+            return convert_word_to_markdown(fileName)
             
         # Excel files - use exact matching for MIME types and extension checking for simple types
         elif (file_type == "application/vnd.ms-excel" or
               file_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" or
               file_type.endswith(".xlsx") or file_type.endswith(".xls") or
               file_type == "excel"):
-            return convert_excel_to_json(content)
+            return convert_excel_to_json(fileName)
             
         # Text files
         elif any(x in file_type for x in ["text/plain", "text/csv", "text/markdown", "text/tab-separated-values",
                                          "text/", "txt", "csv", "md", "tsv"]):
-            return base64_to_text(content)
-            
+            try:
+                with open(fileName, 'r', encoding='utf-8') as file:
+                    return file.read()
+            except Exception as e:
+                logger.error(f"Error reading text file {fileName}: {str(e)}")
+                return f"Error reading file: {str(e)}"
+             
         # PowerPoint files
         elif any(x in file_type for x in ["application/vnd.ms-powerpoint", 
                                          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                                          "powerpoint", "ppt", "pptx"]):
-            return convert_ppt_to_markdown(content)
+            return convert_ppt_to_markdown(fileName)
             
         # HTML content
         elif "text/html" in file_type or "html" in file_type:
-            return html_to_markdown(content)
+            return html_to_markdown(fileName)
             
         # Default case - return content as is
         else:

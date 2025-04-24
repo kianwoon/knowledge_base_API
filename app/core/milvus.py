@@ -177,6 +177,8 @@ class MilvusClientManager:
                 FieldSchema(name="job_id", dtype=DataType.VARCHAR, max_length=100),  
                 FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535), 
                 FieldSchema(name="chunk_index", dtype=DataType.INT64),
+                FieldSchema(name="metadata", dtype=DataType.JSON),
+                FieldSchema(name="sensitivity", dtype=DataType.VARCHAR, max_length=50),  
             ]
             
             # Create collection schema with enable_dynamic_field=True to accept unknown fields
@@ -199,8 +201,8 @@ class MilvusClientManager:
             
             collection.create_index(field_name="sparse", index_name="sparse_index")
             
-            # Create index on job_id field for better query performance
-            collection.create_index(field_name="job_id", index_name="job_id_index")
+            # Create index on sensitivity field for better query performance
+            collection.create_index(field_name="sensitivity", index_name="sensitivity_index")
             
             logger.info(f"Created Milvus collection: {collection_name}")
             return True
@@ -209,7 +211,7 @@ class MilvusClientManager:
             return False
     
     async def save_embeddings(self, job_id: str, embeddings: list, collection_name: str, 
-                             metadata: dict = None, extra_data: dict = None) -> dict:
+                             extra_data: dict = None) -> dict:
         """
         Save embeddings to Milvus.
         
@@ -260,14 +262,23 @@ class MilvusClientManager:
                     "job_id": job_id,  
                     "content": embedding_item["content"],
                     "chunk_index": embedding_item["chunk_index"],
+                    "sensitivity": extra_data["sensitivity"] if extra_data and "sensitivity" in extra_data else None
                 }
                 
-                # Add extra data if provided
-                # if extra_data:
-                #     # Convert extra data to JSON-serializable format
-                #     for key, value in extra_data.items():
-                #         if isinstance(value, str) and len(value) < 65535:
-                #             entity[key] = value
+                # Handle metadata properly for JSON field
+                if extra_data is None:
+                    entity["metadata"] = {}
+                else:
+                    # Ensure extra_data is a dictionary
+                    if isinstance(extra_data, dict):
+                        entity["metadata"] = extra_data
+                    else:
+                        # Convert to dict if possible, otherwise use empty dict
+                        try:
+                            entity["metadata"] = dict(extra_data)
+                        except (TypeError, ValueError):
+                            logger.warning(f"Could not convert extra_data to dictionary. Using empty dict instead.")
+                            entity["metadata"] = {}
                 
                 entities.append(entity)
             
@@ -421,12 +432,12 @@ class MilvusClientManager:
     
     async def set_payload(self, collection_name: str, payload: Dict[str, Any], points: List[str]) -> bool:
         """
-        Update payload for specific points.
+        Update payload for specific points using upsert.
         
         Args:
             collection_name: Name of the collection
-            payload: Payload data to update
-            points: List of point IDs to update
+            payload: Payload data to update (key-value pairs)
+            points: List of point IDs (primary keys) to update
             
         Returns:
             bool: True if updated successfully, False otherwise
@@ -437,34 +448,44 @@ class MilvusClientManager:
             
             # Check if collection exists
             if not utility.has_collection(collection_name):
+                logger.warning(f"Collection {collection_name} does not exist.")
                 return False
             
             # Get the collection
             collection = Collection(name=collection_name)
-            collection.load()
+            collection.load() # Ensure collection is loaded for operations
+
+            # Prepare data for upsert
+            # Upsert expects a list of dictionaries or a dictionary of lists.
+            # Let's use a list of dictionaries, one for each point to update.
+            upsert_data = []
+            for point_id in points:
+                entity_data = {"pk": point_id} # Include the primary key
+                entity_data.update(payload) # Add the fields to update
+                upsert_data.append(entity_data)
+
+            if not upsert_data:
+                logger.warning("No data prepared for upsert.")
+                return False
+
+            # Perform the upsert operation
+            mutation_result = collection.upsert(data=upsert_data)
             
-            # Prepare update data
-            data = []
-            for field_name, field_value in payload.items():
-                data.append(field_name)
-                data.append([field_value] * len(points))
+            # Check if upsert was successful (optional, based on API)
+            # You might need to inspect mutation_result for success/failure details
+            if mutation_result.upsert_count != len(points):
+                 logger.warning(f"Upsert operation might not have updated all points. Expected: {len(points)}, Actual: {mutation_result.upsert_count}")
+                 # Decide if this is an error or just a warning
+
+            collection.flush() # Ensure changes are persisted
             
-            # Build the expression for the points
-            expr = f'id in ["{points[0]}"'
-            for point in points[1:]:
-                expr += f', "{point}"'
-            expr += ']'
-            
-            # Update entities
-            collection.update(
-                expr=expr,
-                data=data
-            )
-            collection.flush()
-            
+            logger.info(f"Successfully upserted payload for {len(points)} points in collection {collection_name}.")
             return True
+            
         except Exception as e:
-            logger.error(f"Error updating payload in Milvus collection {collection_name}: {str(e)}")
+            logger.error(f"Error upserting payload in Milvus collection {collection_name}: {str(e)}")
+            # Log the exception traceback for more details
+            logger.exception(e)
             return False
     
     async def scroll(self, collection_name: str, scroll_filter: str = None, 
@@ -497,7 +518,7 @@ class MilvusClientManager:
             collection.load()
             
             # Define output fields
-            output_fields = ["id"]
+            output_fields = ["pk"]
             if with_payload:
                 output_fields.extend(with_payload)
             if with_vectors:
@@ -521,7 +542,7 @@ class MilvusClientManager:
                 )
             else:
                 results = collection.query(
-                    expr="id != ''",  # Match all
+                    expr="pk != ''",  # Match all
                     output_fields=output_fields,
                     limit=limit,
                     offset=current_offset
@@ -530,9 +551,9 @@ class MilvusClientManager:
             # Format results to match Qdrant's format
             formatted_results = []
             for result in results:
-                payload = {k: v for k, v in result.items() if k not in ["id", "vector"]}
+                payload = {k: v for k, v in result.items() if k not in ["pk", "vector"]}
                 formatted_result = {
-                    "id": result["id"],
+                    "pk": result["pk"],
                     "payload": payload
                 }
                 if with_vectors and "vector" in result:

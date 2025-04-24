@@ -15,10 +15,18 @@ from app.core.config import get_settings
 class PostgresConnection:
     """PostgreSQL connection manager."""
     
-    def __init__(self):
-        """Initialize PostgreSQL connection manager."""
+    def __init__(self, min_size=2, max_size=10):
+        """
+        Initialize PostgreSQL connection manager.
+        
+        Args:
+            min_size: Minimum number of connections in the pool (default: 2)
+            max_size: Maximum number of connections in the pool (default: 10)
+        """
         self.pool = None
         self.settings = get_settings()
+        self.min_size = min_size
+        self.max_size = max_size
     
     async def connect(self) -> asyncpg.Pool:
         """Connect to PostgreSQL.
@@ -26,7 +34,7 @@ class PostgresConnection:
         Returns:
             PostgreSQL connection pool
         """
-        if self.pool is not None:
+        if self.pool is not None and not self.pool._closed:
             return self.pool
             
         # Try to get the database_url from environment variables first
@@ -58,13 +66,20 @@ class PostgresConnection:
             echo = self.settings.get("postgres", {}).get("echo", False)
         
         try:
-            self.pool = await asyncpg.create_pool(database_url)
+            # Create pool with explicit min and max size to prevent connection exhaustion
+            self.pool = await asyncpg.create_pool(
+                database_url,
+                min_size=self.min_size,
+                max_size=self.max_size,
+                command_timeout=60.0
+            )
+            
             if echo:
                 logger.info(f"Connected to PostgreSQL at {database_url.split('@')[1]}")
             else:
                 # Hide credentials in logs
                 db_info = database_url.split("@")[1] if "@" in database_url else "database"
-                logger.info(f"Connected to PostgreSQL at {db_info}")
+                logger.info(f"Connected to PostgreSQL at {db_info} (pool: min={self.min_size}, max={self.max_size})")
             
             # Check and create tables only if necessary
             await self._create_tables()
@@ -76,11 +91,20 @@ class PostgresConnection:
     
     async def disconnect(self) -> None:
         """Disconnect from PostgreSQL."""
-        if self.pool:
+        if self.pool and not self.pool._closed:
             await self.pool.close()
             self.pool = None
             logger.info("Disconnected from PostgreSQL")
     
+    async def __aenter__(self):
+        """Context manager entry."""
+        await self.connect()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        await self.disconnect()
+
     async def _create_tables(self) -> None:
         """Check if tables exist and create only if they don't."""
         async with self.pool.acquire() as conn:
@@ -136,7 +160,7 @@ class PostgresCache:
         Args:
             connection_manager: PostgreSQL connection manager (optional)
         """
-        self.connection_manager = connection_manager or PostgresConnection()
+        self.connection_manager = connection_manager or PostgresConnection(min_size=2, max_size=10)
     
     async def connect(self) -> None:
         """Connect to the database."""
@@ -146,6 +170,15 @@ class PostgresCache:
         """Disconnect from the database."""
         await self.connection_manager.disconnect()
     
+    async def __aenter__(self):
+        """Context manager entry."""
+        await self.connect()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        await self.disconnect()
+        
     async def get(self, key: str) -> Optional[str]:
         """Get value from cache.
         

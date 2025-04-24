@@ -12,25 +12,27 @@ class EmbeddingAzureProcessor(EmbeddingFileProcessor):
     """Processor for Azure text embedding jobs."""
     
     async def get_pending_jobs(self) -> Dict[str, Any]:
-
-        # Use the instance repository instead of creating a new one
+        """Get pending jobs for Azure processing.
         
-        filter = {
-                    "must": [
-                            {"key": "analysis_status", "match": {"value": "pending"}}
-                            ]
-                }
-        
-        payload = ["id", "analysis_status"]
-
-        pending_jobs = await self.repository.get_pending_jobs(self.job_type, filter, payload)                 
-  
-        if not pending_jobs:
-            logger.info("No pending jobs found for processing.")
-            return []
-        
-        logger.info(f"Found {len(pending_jobs)} pending jobs")
-        return pending_jobs
+        Returns:
+            List of pending job IDs
+        """
+        try:
+            # Connect to repository
+            await self.source_repository.connect_with_retry()
+            
+            # Get pending jobs
+            pending_jobs = await self.source_repository.get_pending_jobs(self.job_type)                 
+      
+            if not pending_jobs:
+                logger.info("No pending jobs found for processing.")
+                return []
+            
+            logger.info(f"Found {len(pending_jobs)} pending jobs")
+            return pending_jobs
+        finally:
+            # Always close the connection when done
+            await self.close()
  
     
     async def start_embedding(self, job_data: Dict[str, Any], job_id: str, trace_id: str, owner: str = None) -> Dict[str, Any]:

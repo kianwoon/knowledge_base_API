@@ -1,2 +1,2 @@
 #!/bin/sh
-exec celery -A app.celery.worker.celery worker -P threads --loglevel=info --autoscale=${ENV_CELERY_CONCURRENCY:-4},2 --max-tasks-per-child=${ENV_CELERY_MAX_TASKS_PER_CHILD:-100}
+exec celery -A app.celery.worker.celery worker -P solo --loglevel=info --autoscale=${ENV_CELERY_CONCURRENCY:-4},2 --max-tasks-per-child=${ENV_CELERY_MAX_TASKS_PER_CHILD:-100}

@@ -279,10 +279,16 @@ class EmbeddingFileProcessor(JobProcessor):
             await self.source_repository.store_job_error(job_id, "File type is not supported.")
             raise ValueError(f"File type {file_type} is not supported.")
         
-        file = download_file(binaryFile, job_id, filename)
-        if not file:
-            await self.source_repository.store_job_error(job_id, "File could not be downloaded")
-            raise ValueError(f"Job {job_id} Error: File could not be downloaded.")
+        try:
+            file = download_file(binaryFile, job_id, filename)
+            if not file:
+                await self.source_repository.store_job_error(job_id, "File could not be downloaded")
+                raise ValueError(f"Job {job_id} Error: File could not be downloaded.")
+        except Exception as e:
+            error_message = f"Error downloading file: {str(e)}"
+            logger.error(f"Job {job_id}: {error_message}")
+            await self.source_repository.store_job_error(job_id, error_message)
+            raise ValueError(f"Job {job_id} Error: {error_message}")
         
         results = await self.send_embedding(job_id, trace_id, file_type, fileSize, file, job_status, extra_data)
         
